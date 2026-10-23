@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 09:15:37 +0700
+Subject: [PATCH 53/92] arm64: dts: exynos7570: j4lte: enable eMMC HS200
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 4dc0b09410423f8d3f8ddaf8f1966b70f5074c6e)
+---
+ arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index 29ce0a36a..c3b7c4bbe 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -124,6 +124,7 @@ &mmc0 {
+ 	non-removable;
+ 	cap-mmc-highspeed;
+ 	mmc-ddr-1_8v;
++	mmc-hs200-1_8v;
+ 	no-sd;
+ 	no-sdio;
+ 

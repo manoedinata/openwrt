@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 21:40:01 +0700
+Subject: [PATCH 82/92] dt-bindings: gpu: mali-midgard: add Exynos7570
+
+The Exynos7570 has a Mali-T720 with one shader core.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 46f32b6c2c5aa2bd6b09c79d6d9a836d192da8fc)
+---
+ Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml b/Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml
+index 48daba21a..ff25a2b10 100644
+--- a/Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml
++++ b/Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml
+@@ -25,6 +25,7 @@ properties:
+       - items:
+           - enum:
+               - allwinner,sun50i-h6-mali
++              - samsung,exynos7570-mali
+           - const: arm,mali-t720
+       - items:
+           - enum:

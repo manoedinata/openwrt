@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 14:27:14 +0700
+Subject: [PATCH 67/92] arm64: dts: exynos7570: j4lte: boot normally
+
+The test boot mode is for the mainline test images that ask for it on the
+command line; the default must not end in it.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit f64443d543b935deb4c5cec1381f5f6645b4bfc6)
+---
+ arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index 6e8f4a5c7..0f08aae3e 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -19,7 +19,7 @@ chosen {
+ 		#size-cells = <1>;
+ 		ranges;
+ 
+-		bootargs = "console=tty0 ignore_loglevel clk_ignore_unused regulator_ignore_unused j4.autoreboot=45";
++		bootargs = "console=tty0 ignore_loglevel clk_ignore_unused regulator_ignore_unused";
+ 
+ 		/* Set up by the bootloader (uniLoader), scanned out by DECON */
+ 		framebuffer0: framebuffer@67000000 {

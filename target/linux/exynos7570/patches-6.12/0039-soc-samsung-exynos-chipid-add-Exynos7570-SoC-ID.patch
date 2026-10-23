@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 07:30:16 +0700
+Subject: [PATCH 39/92] soc: samsung: exynos-chipid: add Exynos7570 SoC ID
+
+The Exynos7570 reports product ID 0xE7570202 (product 0xE7570, revision
+0x202), so the driver fails with 'Unknown SoC' on it. Add it to the list and
+document the samsung,exynos7570-chipid compatible.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit bffbcbfca82ac313cfbe5143805150c703d48994)
+---
+ .../devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml        | 1 +
+ drivers/soc/samsung/exynos-chipid.c                              | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml b/Documentation/devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml
+index 54699583f..7dba5d0bd 100644
+--- a/Documentation/devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml
++++ b/Documentation/devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml
+@@ -19,6 +19,7 @@ properties:
+           - enum:
+               - samsung,exynos5433-chipid
+               - samsung,exynos7-chipid
++              - samsung,exynos7570-chipid
+               - samsung,exynos7870-chipid
+           - const: samsung,exynos4210-chipid
+       - items:
+diff --git a/drivers/soc/samsung/exynos-chipid.c b/drivers/soc/samsung/exynos-chipid.c
+index 5c21fc750..0f7ee422f 100644
+--- a/drivers/soc/samsung/exynos-chipid.c
++++ b/drivers/soc/samsung/exynos-chipid.c
+@@ -56,6 +56,7 @@ static const struct exynos_soc_id {
+ 	{ "EXYNOS5440", 0xE5440000 },
+ 	{ "EXYNOS5800", 0xE5422000 },
+ 	{ "EXYNOS7420", 0xE7420000 },
++	{ "EXYNOS7570", 0xE7570000 },
+ 	{ "EXYNOS7870", 0xE7870000 },
+ 	/* Compatible with: samsung,exynos850-chipid */
+ 	{ "EXYNOS7885", 0xE7885000 },

@@ -1,0 +1,26 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 22:11:19 +0700
+Subject: [PATCH 84/92] arm64: dts: exynos7570: j4lte: root on SYSTEM
+
+USERDATA is now a USB disk for another machine; the rootfs is back on
+SYSTEM (mmcblk0p18).
+
+(cherry picked from commit 2c8fc44b59cbfa05bbb2c3396b033b5f1e2c3feb)
+---
+ arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index 8bbe3f871..f1554608c 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -15,7 +15,7 @@ / {
+ 	chassis-type = "handset";
+ 
+ 	chosen {
+-		bootargs = "console=tty0 ignore_loglevel clk_ignore_unused regulator_ignore_unused root=/dev/mmcblk0p25 rootfstype=ext4";
++		bootargs = "console=tty0 ignore_loglevel clk_ignore_unused regulator_ignore_unused root=/dev/mmcblk0p18 rootfstype=ext4";
+ 	};
+ 
+ 	/*

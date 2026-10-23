@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 21:13:32 +0700
+Subject: [PATCH 77/92] clk: samsung: exynos7570: keep the DISPAUD bus and APB
+ gates on
+
+The display runs on these gates from the bootloader on, and they are
+shared: the SysMMU in front of DECON takes the BUS_DISP and APB_DISP
+gates too. Its probe enabling and disabling them dropped the count to
+zero and gated the display bus, which stopped the stream the
+bootloader left running and made DECON registers abort on access.
+
+Mark the four bus and APB gates critical.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit b8950e1c7395b68a69fab1a9a90f8da46ed6752a)
+---
+ drivers/clk/samsung/clk-exynos7570.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos7570.c b/drivers/clk/samsung/clk-exynos7570.c
+index 9c9cffb42..14013e327 100644
+--- a/drivers/clk/samsung/clk-exynos7570.c
++++ b/drivers/clk/samsung/clk-exynos7570.c
+@@ -461,12 +461,12 @@ static const struct samsung_div_clock dispaud_div_clks[] __initconst = {
+ };
+ 
+ static const struct samsung_gate_clock dispaud_gate_clks[] __initconst = {
+-	GATE(CLK_GOUT_DISPAUD_BUS, "gout_dispaud_bus", "mout_dispaud_bus_user", CLK_ENABLE_CLK_DISPAUD_BUS, 0, 0, 0),
++	GATE(CLK_GOUT_DISPAUD_BUS, "gout_dispaud_bus", "mout_dispaud_bus_user", CLK_ENABLE_CLK_DISPAUD_BUS, 0, CLK_IS_CRITICAL, 0),
+ 	GATE(CLK_GOUT_DISPAUD_BUS_VPP, "gout_dispaud_bus_vpp", "mout_dispaud_bus_user", CLK_ENABLE_CLK_DISPAUD_BUS, 1, 0, 0),
+-	GATE(CLK_GOUT_DISPAUD_BUS_DISP, "gout_dispaud_bus_disp", "mout_dispaud_bus_user", CLK_ENABLE_CLK_DISPAUD_BUS, 2, 0, 0),
++	GATE(CLK_GOUT_DISPAUD_BUS_DISP, "gout_dispaud_bus_disp", "mout_dispaud_bus_user", CLK_ENABLE_CLK_DISPAUD_BUS, 2, CLK_IS_CRITICAL, 0),
+ 	GATE(CLK_GOUT_DISPAUD_BUS_PPMU, "gout_dispaud_bus_ppmu", "mout_dispaud_bus_user", CLK_ENABLE_CLK_DISPAUD_BUS, 3, 0, 0),
+-	GATE(CLK_GOUT_DISPAUD_APB, "gout_dispaud_apb", "dout_dispaud_apb", CLK_ENABLE_CLK_DISPAUD_APB, 0, 0, 0),
+-	GATE(CLK_GOUT_DISPAUD_APB_DISP, "gout_dispaud_apb_disp", "dout_dispaud_apb", CLK_ENABLE_CLK_DISPAUD_APB, 1, 0, 0),
++	GATE(CLK_GOUT_DISPAUD_APB, "gout_dispaud_apb", "dout_dispaud_apb", CLK_ENABLE_CLK_DISPAUD_APB, 0, CLK_IS_CRITICAL, 0),
++	GATE(CLK_GOUT_DISPAUD_APB_DISP, "gout_dispaud_apb_disp", "dout_dispaud_apb", CLK_ENABLE_CLK_DISPAUD_APB, 1, CLK_IS_CRITICAL, 0),
+ 	GATE(CLK_GOUT_DISPAUD_DECON_VCLK, "gout_dispaud_decon_vclk", "dout_dispaud_decon_vclk", CLK_ENABLE_CLK_DISPAUD_DECON_INT_VCLK, 0, 0, 0),
+ 	GATE(CLK_GOUT_DISPAUD_MIPIPHY_TXBYTECLKHS, "gout_dispaud_mipiphy_txbyteclkhs", "mout_dispaud_mipiphy_txbyteclkhs_user", CLK_ENABLE_CLKPHY_DISPAUD_MIPIPHY_TXBYTECLKHS, 0, 0, 0),
+ 	GATE(CLK_GOUT_DISPAUD_MIPIPHY_RXCLKESC0, "gout_dispaud_mipiphy_rxclkesc0", "mout_dispaud_mipiphy_rxclkesc0_user", CLK_ENABLE_CLKPHY_DISPAUD_MIPIPHY_RXCLKESC0, 0, 0, 0),

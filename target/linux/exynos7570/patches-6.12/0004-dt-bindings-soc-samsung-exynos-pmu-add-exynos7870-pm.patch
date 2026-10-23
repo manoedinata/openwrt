@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Sat, 1 Mar 2025 01:16:49 +0530
+Subject: [PATCH 04/92] dt-bindings: soc: samsung: exynos-pmu: add
+ exynos7870-pmu compatible
+
+Document the compatible string for the Exynos7870 PMU. It's compatible
+with the Exynos7 PMU design. It handles syscon reboot, syscon reboot mode,
+as well as other system control registers (i.e registers for the USB PHY).
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Link: https://lore.kernel.org/r/20250301-exynos7870-v4-1-2925537f9b2a@disroot.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+(cherry picked from commit bf869ecfb8d3d0fef07ed2752df93c977cc257b6):
+---
+ Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml b/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
+index 15fcd8f1d..bb911736f 100644
+--- a/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
++++ b/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
+@@ -52,6 +52,7 @@ properties:
+           - const: syscon
+       - items:
+           - enum:
++              - samsung,exynos7870-pmu
+               - samsung,exynos7885-pmu
+               - samsung,exynosautov9-pmu
+               - samsung,exynosautov920-pmu

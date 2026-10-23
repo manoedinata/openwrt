@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Sat, 1 Mar 2025 01:10:33 +0530
+Subject: [PATCH 10/92] dt-bindings: usb: samsung,exynos-dwc3: add exynos7870
+ support
+
+Document compatible string for Exynos7870 DWC3-compatible USB 2.0
+driver. The devicetree node requires three clocks, named "bus_early",
+"ref", and "ctrl".
+
+Unlike other variants, Exynos7870's USB controller requires a single
+3.0V regulator. Assert that the other 1.0V regulator requirement is
+enforced on variants individually other than Exynos7870's.
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20250301-exynos7870-usb-v3-1-f01697165d19@disroot.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+(cherry picked from commit 43092fcd79a44c3d6cdc10178c29da17a64b0131):
+---
+ .../bindings/usb/samsung,exynos-dwc3.yaml     | 28 ++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/usb/samsung,exynos-dwc3.yaml b/Documentation/devicetree/bindings/usb/samsung,exynos-dwc3.yaml
+index 2b3430ceb..644014b32 100644
+--- a/Documentation/devicetree/bindings/usb/samsung,exynos-dwc3.yaml
++++ b/Documentation/devicetree/bindings/usb/samsung,exynos-dwc3.yaml
+@@ -16,6 +16,7 @@ properties:
+       - samsung,exynos5250-dwusb3
+       - samsung,exynos5433-dwusb3
+       - samsung,exynos7-dwusb3
++      - samsung,exynos7870-dwusb3
+       - samsung,exynos850-dwusb3
+ 
+   '#address-cells':
+@@ -52,7 +53,6 @@ required:
+   - clock-names
+   - ranges
+   - '#size-cells'
+-  - vdd10-supply
+   - vdd33-supply
+ 
+ allOf:
+@@ -72,6 +72,8 @@ allOf:
+             - const: susp_clk
+             - const: link_aclk
+             - const: link_pclk
++      required:
++        - vdd10-supply
+ 
+   - if:
+       properties:
+@@ -86,6 +88,8 @@ allOf:
+         clock-names:
+           items:
+             - const: usbdrd30
++      required:
++        - vdd10-supply
+ 
+   - if:
+       properties:
+@@ -103,6 +107,8 @@ allOf:
+             - const: susp_clk
+             - const: phyclk
+             - const: pipe_pclk
++      required:
++        - vdd10-supply
+ 
+   - if:
+       properties:
+@@ -119,6 +125,24 @@ allOf:
+             - const: usbdrd30
+             - const: usbdrd30_susp_clk
+             - const: usbdrd30_axius_clk
++      required:
++        - vdd10-supply
++
++  - if:
++      properties:
++        compatible:
++          contains:
++            const: samsung,exynos7870-dwusb3
++    then:
++      properties:
++        clocks:
++          minItems: 3
++          maxItems: 3
++        clock-names:
++          items:
++            - const: bus_early
++            - const: ref
++            - const: ctrl
+ 
+   - if:
+       properties:
+@@ -134,6 +158,8 @@ allOf:
+           items:
+             - const: bus_early
+             - const: ref
++      required:
++        - vdd10-supply
+ 
+ additionalProperties: false
+ 

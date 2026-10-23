@@ -1,0 +1,289 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 11:56:50 +0700
+Subject: [PATCH 58/92] power: supply: s2mpu06: report the battery temperature
+
+The thermistor is read through the AP's ADC and converted with a table from
+the device tree; the gauge also wants it as a coarse environment value.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit e8105bb428c1f507101b6ef1e456dbf864c96723)
+---
+ .../regulator/samsung,s2mpu06-pmic.yaml       |  21 +++
+ .../boot/dts/exynos/exynos7570-j4lte.dts      |   6 +
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi    |  12 ++
+ drivers/power/supply/s2mpu06_fuelgauge.c      | 129 ++++++++++++++++++
+ 4 files changed, 168 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml b/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
+index 1d45f29de..755f4b493 100644
+--- a/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
++++ b/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
+@@ -29,6 +29,27 @@ properties:
+     $ref: /schemas/types.yaml#/definitions/phandle
+     description: Battery described by a simple-battery node, used by the fuel gauge.
+ 
++  io-channels:
++    maxItems: 1
++    description: ADC channel the battery thermistor is wired to.
++
++  io-channel-names:
++    const: adc-temp
++
++  samsung,temp-adc-table:
++    $ref: /schemas/types.yaml#/definitions/uint32-array
++    minItems: 2
++    maxItems: 64
++    description: Raw ADC values of the thermistor lookup table, ascending.
++
++  samsung,temp-decidegc-table:
++    $ref: /schemas/types.yaml#/definitions/int32-array
++    minItems: 2
++    maxItems: 64
++    description:
++      Battery temperature in tenths of a degree Celsius for each value of
++      samsung,temp-adc-table.
++
+   regulators:
+     type: object
+     description: Regulator nodes named after the rails.
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index d22322c4e..139517e71 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -165,6 +165,12 @@ pmic@0 {
+ 
+ 		monitored-battery = <&battery>;
+ 
++		/* battery NTC on the AP's ADC channel 1 */
++		io-channels = <&adc 1>;
++		io-channel-names = "adc-temp";
++		samsung,temp-adc-table = <311 358 417 483 566 659 772 842 912 957 994 1085 1150 1228 1361 1377 1456 1548 1581 1782 2026 2252 2477 2578 2712 2796 2937 3010 3126 3227 3302 3446 3574 3681>;
++		samsung,temp-decidegc-table = <900 850 800 750 700 650 600 570 550 530 500 470 450 430 410 400 380 360 350 300 250 200 150 130 100 80 50 30 0 (-30) (-50) (-100) (-150) (-200)>;
++
+ 		regulators {
+ 			buck1_reg: BUCK1 {
+ 				regulator-name = "BUCK1";
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index fab7e1d59..5d9d37821 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -149,6 +149,18 @@ speedy: speedy@10510000 {
+ 			status = "disabled";
+ 		};
+ 
++		adc: adc@10550000 {
++			compatible = "samsung,exynos7570-adc";
++			reg = <0x10550000 0x1000>;
++			interrupts = <GIC_SPI 395 IRQ_TYPE_LEVEL_HIGH>;
++
++			clock-names = "adc", "sclk";
++			clocks = <&cmu_mif CLK_GOUT_MIF_ADC_PCLK_S0>,
++				 <&cmu_mif CLK_GOUT_MIF_ADC_OSC_SYS>;
++
++			#io-channel-cells = <1>;
++		};
++
+ 		pinctrl_mif: pinctrl@10530000 {
+ 			compatible = "samsung,exynos7570-pinctrl";
+ 			reg = <0x10530000 0x1000>;
+diff --git a/drivers/power/supply/s2mpu06_fuelgauge.c b/drivers/power/supply/s2mpu06_fuelgauge.c
+index 612d1f21d..98507869d 100644
+--- a/drivers/power/supply/s2mpu06_fuelgauge.c
++++ b/drivers/power/supply/s2mpu06_fuelgauge.c
+@@ -9,26 +9,41 @@
+ 
+ #include <linux/bits.h>
+ #include <linux/device.h>
++#include <linux/iio/consumer.h>
++#include <linux/math64.h>
++#include <linux/of.h>
+ #include <linux/property.h>
+ #include <linux/mfd/samsung/s2mpu06.h>
+ #include <linux/module.h>
+ #include <linux/platform_device.h>
+ #include <linux/power_supply.h>
+ #include <linux/regmap.h>
++#include <linux/workqueue.h>
+ 
+ #define S2MPU06_FG_RVBAT		0x04
+ #define S2MPU06_FG_ROCV			0x06
+ #define S2MPU06_FG_RCUR			0x08
+ #define S2MPU06_FG_RSOC			0x0c
++#define S2MPU06_FG_RTEMP		0x0e
+ 
+ #define S2MPU06_FG_NEG			BIT(15)
+ #define S2MPU06_FG_RETRIES		10
++#define S2MPU06_FG_TEMP_PERIOD		msecs_to_jiffies(30000)
+ 
+ struct s2mpu06_fuelgauge {
+ 	struct device *dev;
+ 	struct s2mpu06 *s2m;
+ 	struct power_supply *psy;
+ 	struct power_supply_battery_info *info;
++
++	/* battery thermistor: raw ADC value -> 0.1 degC */
++	struct iio_channel *adc;
++	u32 *temp_adc;
++	s32 *temp_deci;
++	int temp_points;
++	int temp;
++	int temp_bucket;
++	struct delayed_work temp_work;
+ };
+ 
+ /*
+@@ -93,6 +108,58 @@ static int s2mpu06_fg_read_soc(struct s2mpu06_fuelgauge *fg, int *soc)
+ 	return 0;
+ }
+ 
++static int s2mpu06_fg_adc_to_temp(struct s2mpu06_fuelgauge *fg, int raw)
++{
++	int i, n = fg->temp_points;
++
++	if (raw <= fg->temp_adc[0])
++		return fg->temp_deci[0];
++	if (raw >= fg->temp_adc[n - 1])
++		return fg->temp_deci[n - 1];
++
++	for (i = 1; i < n; i++) {
++		if (raw > fg->temp_adc[i])
++			continue;
++		return fg->temp_deci[i - 1] +
++		       (int)div_s64((s64)(fg->temp_deci[i] - fg->temp_deci[i - 1]) *
++				    (raw - fg->temp_adc[i - 1]),
++				    fg->temp_adc[i] - fg->temp_adc[i - 1]);
++	}
++
++	return fg->temp_deci[n - 1];
++}
++
++/* the gauge takes the temperature as one of four coarse environments, in degC */
++static int s2mpu06_fg_temp_bucket(int deci)
++{
++	int c = deci / 10;
++
++	if (c < -5)
++		return 0;
++	if (c < 15)
++		return 10;
++	if (c < 35)
++		return 25;
++	return 40;
++}
++
++static void s2mpu06_fg_temp_work(struct work_struct *work)
++{
++	struct s2mpu06_fuelgauge *fg = container_of(work, struct s2mpu06_fuelgauge, temp_work.work);
++	int raw, bucket;
++
++	if (iio_read_channel_raw(fg->adc, &raw) >= 0) {
++		fg->temp = s2mpu06_fg_adc_to_temp(fg, raw);
++
++		bucket = s2mpu06_fg_temp_bucket(fg->temp);
++		if (bucket != fg->temp_bucket &&
++		    !regmap_write(fg->s2m->fg, S2MPU06_FG_RTEMP, bucket))
++			fg->temp_bucket = bucket;
++	}
++
++	schedule_delayed_work(&fg->temp_work, S2MPU06_FG_TEMP_PERIOD);
++}
++
+ static int s2mpu06_fg_get_status(struct s2mpu06_fuelgauge *fg)
+ {
+ 	struct power_supply *chg = power_supply_get_by_name("s2mpu06-charger");
+@@ -143,6 +210,11 @@ static int s2mpu06_fg_get_property(struct power_supply *psy, enum power_supply_p
+ 			val->intval = -(int)((raw & 0x7fff) * 1000 >> 12);
+ 		val->intval *= 1000;
+ 		return 0;
++	case POWER_SUPPLY_PROP_TEMP:
++		if (!fg->adc)
++			return -ENODATA;
++		val->intval = fg->temp;
++		return 0;
+ 	case POWER_SUPPLY_PROP_CAPACITY:
+ 		ret = s2mpu06_fg_read_soc(fg, &soc);
+ 		if (ret)
+@@ -172,6 +244,7 @@ static const enum power_supply_property s2mpu06_fg_props[] = {
+ 	POWER_SUPPLY_PROP_VOLTAGE_NOW,
+ 	POWER_SUPPLY_PROP_VOLTAGE_OCV,
+ 	POWER_SUPPLY_PROP_CURRENT_NOW,
++	POWER_SUPPLY_PROP_TEMP,
+ 	POWER_SUPPLY_PROP_CAPACITY,
+ 	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
+ 	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
+@@ -193,11 +266,63 @@ static void s2mpu06_fg_put_info(void *data)
+ 		power_supply_put_battery_info(fg->psy, fg->info);
+ }
+ 
++static void s2mpu06_fg_cancel_temp_work(void *data)
++{
++	cancel_delayed_work_sync(data);
++}
++
++/* optional: the NTC thermistor is read by the AP's ADC and converted with a table */
++static int s2mpu06_fg_init_temp(struct s2mpu06_fuelgauge *fg)
++{
++	struct device *dev = fg->dev;
++	int n, raw, ret;
++
++	fg->adc = devm_iio_channel_get(dev, "adc-temp");
++	if (IS_ERR(fg->adc)) {
++		ret = PTR_ERR(fg->adc);
++		fg->adc = NULL;
++		return ret == -EPROBE_DEFER ? ret : 0;
++	}
++
++	n = of_property_count_u32_elems(dev->of_node, "samsung,temp-adc-table");
++	if (n < 2 || n != of_property_count_u32_elems(dev->of_node, "samsung,temp-decidegc-table")) {
++		dev_warn(dev, "no usable temperature table, temperature disabled\n");
++		fg->adc = NULL;
++		return 0;
++	}
++
++	fg->temp_adc = devm_kcalloc(dev, n, sizeof(*fg->temp_adc), GFP_KERNEL);
++	fg->temp_deci = devm_kcalloc(dev, n, sizeof(*fg->temp_deci), GFP_KERNEL);
++	if (!fg->temp_adc || !fg->temp_deci)
++		return -ENOMEM;
++	fg->temp_points = n;
++
++	ret = of_property_read_u32_array(dev->of_node, "samsung,temp-adc-table", fg->temp_adc, n);
++	if (!ret)
++		ret = of_property_read_u32_array(dev->of_node, "samsung,temp-decidegc-table",
++						 (u32 *)fg->temp_deci, n);
++	if (ret)
++		return ret;
++
++	fg->temp_bucket = -1;
++	if (iio_read_channel_raw(fg->adc, &raw) >= 0)
++		fg->temp = s2mpu06_fg_adc_to_temp(fg, raw);
++
++	INIT_DELAYED_WORK(&fg->temp_work, s2mpu06_fg_temp_work);
++	ret = devm_add_action_or_reset(dev, s2mpu06_fg_cancel_temp_work, &fg->temp_work);
++	if (ret)
++		return ret;
++	schedule_delayed_work(&fg->temp_work, 0);
++
++	return 0;
++}
++
+ static int s2mpu06_fg_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
+ 	struct power_supply_config cfg = { };
+ 	struct s2mpu06_fuelgauge *fg;
++	int ret;
+ 
+ 	fg = devm_kzalloc(dev, sizeof(*fg), GFP_KERNEL);
+ 	if (!fg)
+@@ -211,6 +336,10 @@ static int s2mpu06_fg_probe(struct platform_device *pdev)
+ 	cfg.drv_data = fg;
+ 	cfg.fwnode = dev_fwnode(dev);
+ 
++	ret = s2mpu06_fg_init_temp(fg);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot set up the temperature sensing\n");
++
+ 	fg->psy = devm_power_supply_register(dev, &s2mpu06_fg_desc, &cfg);
+ 	if (IS_ERR(fg->psy))
+ 		return dev_err_probe(dev, PTR_ERR(fg->psy), "cannot register the fuel gauge\n");

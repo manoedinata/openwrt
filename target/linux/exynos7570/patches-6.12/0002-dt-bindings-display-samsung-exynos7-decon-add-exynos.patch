@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Wed, 6 Nov 2024 09:00:54 +0900
+Subject: [PATCH 02/92] dt-bindings: display: samsung,exynos7-decon: add
+ exynos7870 compatible
+
+Add the compatible string of Exynos7870 to the existing list.
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Acked-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Inki Dae <inki.dae@samsung.com>
+(cherry picked from commit 3bca8bc1fc3a7c66a6a4a5e40b84f6cf128b70e7):
+---
+ .../bindings/display/samsung/samsung,exynos7-decon.yaml       | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/display/samsung/samsung,exynos7-decon.yaml b/Documentation/devicetree/bindings/display/samsung/samsung,exynos7-decon.yaml
+index 992c23ca7..53916e4c9 100644
+--- a/Documentation/devicetree/bindings/display/samsung/samsung,exynos7-decon.yaml
++++ b/Documentation/devicetree/bindings/display/samsung/samsung,exynos7-decon.yaml
+@@ -19,7 +19,9 @@ description: |
+ 
+ properties:
+   compatible:
+-    const: samsung,exynos7-decon
++    enum:
++      - samsung,exynos7-decon
++      - samsung,exynos7870-decon
+ 
+   clocks:
+     maxItems: 4

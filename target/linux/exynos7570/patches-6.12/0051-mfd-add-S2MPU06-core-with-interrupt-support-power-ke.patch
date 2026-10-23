@@ -1,0 +1,694 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 09:08:56 +0700
+Subject: [PATCH 51/92] mfd: add S2MPU06 core with interrupt support, power
+ key, eMMC supplies
+
+The PMIC's shared level-low interrupt is a regmap-irq chip on the PMIC
+block; charger, fuel gauge and codec sources are acknowledged until their
+drivers exist. Regulators become a cell of the new core, a power key
+driver consumes the pwronf/pwronr interrupts, and mmc0 now gets its
+vmmc/vqmmc from LDO14/LDO15.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit ff0343fd184a45473465de4873c0a9296c4788ee)
+---
+ .../regulator/samsung,s2mpu06-pmic.yaml       |  17 +-
+ .../samsung/samsung,exynos7570-speedy.yaml    |   3 +
+ .../boot/dts/exynos/exynos7570-j4lte.dts      |  19 +-
+ .../boot/dts/exynos/exynos7570-pinctrl.dtsi   |   8 +
+ drivers/input/misc/Kconfig                    |   6 +
+ drivers/input/misc/Makefile                   |   1 +
+ drivers/input/misc/s2mpu06-pwrkey.c           |  89 +++++++++
+ drivers/mfd/Kconfig                           |  10 +
+ drivers/mfd/Makefile                          |   1 +
+ drivers/mfd/s2mpu06.c                         | 187 ++++++++++++++++++
+ drivers/regulator/Kconfig                     |   2 +-
+ drivers/regulator/s2mpu06-regulator.c         |  39 ++--
+ include/linux/mfd/samsung/s2mpu06.h           |  58 ++++++
+ 13 files changed, 402 insertions(+), 38 deletions(-)
+ create mode 100644 drivers/input/misc/s2mpu06-pwrkey.c
+ create mode 100644 drivers/mfd/s2mpu06.c
+ create mode 100644 include/linux/mfd/samsung/s2mpu06.h
+
+diff --git a/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml b/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
+index b35886a61..d42ccca84 100644
+--- a/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
++++ b/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
+@@ -4,15 +4,15 @@
+ $id: http://devicetree.org/schemas/regulator/samsung,s2mpu06-pmic.yaml#
+ $schema: http://devicetree.org/meta-schemas/core.yaml#
+ 
+-title: Samsung S2MPU06 PMIC regulators
++title: Samsung S2MPU06 PMIC
+ 
+ maintainers:
+   - Hendra Manudinata <manoedinata@gmail.com>
+ 
+ description:
+-  The S2MPU06 is a PMIC with three bucks and twenty LDOs, reached over
+-  the SPEEDY bus of the Exynos7570. Regulators not listed in the
+-  regulators node are left as the bootloader configured them.
++  The S2MPU06 is a PMIC with three bucks and twenty LDOs, a power key and
++  more, reached over the SPEEDY bus of the Exynos7570. Regulators not
++  listed in the regulators node are left as the bootloader configured them.
+ 
+ properties:
+   compatible:
+@@ -21,6 +21,10 @@ properties:
+   reg:
+     maxItems: 1
+ 
++  interrupts:
++    maxItems: 1
++    description: Level-low interrupt line shared by all functions of the PMIC.
++
+   regulators:
+     type: object
+     description: Regulator nodes named after the rails.
+@@ -36,15 +40,20 @@ properties:
+ required:
+   - compatible
+   - reg
++  - interrupts
+   - regulators
+ 
+ additionalProperties: false
+ 
+ examples:
+   - |
++    #include <dt-bindings/interrupt-controller/irq.h>
++
+     pmic@0 {
+         compatible = "samsung,s2mpu06-pmic";
+         reg = <0>;
++        interrupt-parent = <&gpa0>;
++        interrupts = <5 IRQ_TYPE_LEVEL_LOW>;
+ 
+         regulators {
+             BUCK1 {
+diff --git a/Documentation/devicetree/bindings/soc/samsung/samsung,exynos7570-speedy.yaml b/Documentation/devicetree/bindings/soc/samsung/samsung,exynos7570-speedy.yaml
+index 575a7024c..d0fa0b2fe 100644
+--- a/Documentation/devicetree/bindings/soc/samsung/samsung,exynos7570-speedy.yaml
++++ b/Documentation/devicetree/bindings/soc/samsung/samsung,exynos7570-speedy.yaml
+@@ -63,6 +63,7 @@ examples:
+   - |
+     #include <dt-bindings/clock/samsung,exynos7570-cmu.h>
+     #include <dt-bindings/interrupt-controller/arm-gic.h>
++    #include <dt-bindings/interrupt-controller/irq.h>
+ 
+     bus@10510000 {
+         compatible = "samsung,exynos7570-speedy";
+@@ -78,6 +79,8 @@ examples:
+         pmic@0 {
+             compatible = "samsung,s2mpu06-pmic";
+             reg = <0>;
++            interrupt-parent = <&gpa0>;
++            interrupts = <5 IRQ_TYPE_LEVEL_LOW>;
+ 
+             regulators {
+                 LDO1 {
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index c719ffcaf..450c72cb0 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -112,7 +112,10 @@ wifibt@79000000 {
+ };
+ 
+ &mmc0 {
+-	/* Pins and supplies are left as S-BOOT set them up */
++	/* Pins are left as S-BOOT set them up */
++	vmmc-supply = <&ldo14_reg>;
++	vqmmc-supply = <&ldo15_reg>;
++
+ 	bus-width = <8>;
+ 	fifo-depth = <64>;
+ 	samsung,dw-mshc-ciu-div = <3>;
+@@ -143,6 +146,12 @@ pmic@0 {
+ 		compatible = "samsung,s2mpu06-pmic";
+ 		reg = <0x0>;
+ 
++		interrupt-parent = <&gpa0>;
++		interrupts = <5 IRQ_TYPE_LEVEL_LOW>;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&pmic_irq>;
++
+ 		regulators {
+ 			buck1_reg: BUCK1 {
+ 				regulator-name = "BUCK1";
+@@ -252,15 +261,15 @@ ldo13_reg: LDO13 {
+ 
+ 			ldo14_reg: LDO14 {
+ 				regulator-name = "vemmc";
+-				regulator-min-microvolt = <1800000>;
+-				regulator-max-microvolt = <3375000>;
++				regulator-min-microvolt = <3000000>;
++				regulator-max-microvolt = <3300000>;
+ 				regulator-ramp-delay = <12000>;
+ 			};
+ 
+ 			ldo15_reg: LDO15 {
+ 				regulator-name = "vqemmc";
+-				regulator-min-microvolt = <800000>;
+-				regulator-max-microvolt = <2000000>;
++				regulator-min-microvolt = <1700000>;
++				regulator-max-microvolt = <1950000>;
+ 				regulator-ramp-delay = <12000>;
+ 			};
+ 
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi b/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
+index 18e5d9a59..9cf517abf 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
+@@ -122,6 +122,14 @@ gpr4: gpr4-gpio-bank {
+ 	};
+ };
+ 
++&pinctrl_alive {
++	pmic_irq: pmic-irq-pins {
++		samsung,pins = "gpa0-5";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_EINT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_UP>;
++	};
++};
++
+ &pinctrl_mif {
+ 	gpm0: gpm0-gpio-bank {
+ 		gpio-controller;
+diff --git a/drivers/input/misc/Kconfig b/drivers/input/misc/Kconfig
+index 6a852c763..7e45983e0 100644
+--- a/drivers/input/misc/Kconfig
++++ b/drivers/input/misc/Kconfig
+@@ -239,6 +239,12 @@ config INPUT_MAX77650_ONKEY
+ 	  To compile this driver as a module, choose M here: the module
+ 	  will be called max77650-onkey.
+ 
++config INPUT_S2MPU06_PWRKEY
++	tristate "Samsung S2MPU06 PMIC power key support"
++	depends on MFD_S2MPU06
++	help
++	  Say Y here to support the power key of the Samsung S2MPU06 PMIC.
++
+ config INPUT_MAX77693_HAPTIC
+ 	tristate "MAXIM MAX77693/MAX77843 haptic controller support"
+ 	depends on (MFD_MAX77693 || MFD_MAX77843) && PWM
+diff --git a/drivers/input/misc/Makefile b/drivers/input/misc/Makefile
+index 4f7f73683..19e79840a 100644
+--- a/drivers/input/misc/Makefile
++++ b/drivers/input/misc/Makefile
+@@ -52,6 +52,7 @@ obj-$(CONFIG_INPUT_KEYSPAN_REMOTE)	+= keyspan_remote.o
+ obj-$(CONFIG_INPUT_KXTJ9)		+= kxtj9.o
+ obj-$(CONFIG_INPUT_M68K_BEEP)		+= m68kspkr.o
+ obj-$(CONFIG_INPUT_MAX77650_ONKEY)	+= max77650-onkey.o
++obj-$(CONFIG_INPUT_S2MPU06_PWRKEY)	+= s2mpu06-pwrkey.o
+ obj-$(CONFIG_INPUT_MAX77693_HAPTIC)	+= max77693-haptic.o
+ obj-$(CONFIG_INPUT_MAX8925_ONKEY)	+= max8925_onkey.o
+ obj-$(CONFIG_INPUT_MAX8997_HAPTIC)	+= max8997_haptic.o
+diff --git a/drivers/input/misc/s2mpu06-pwrkey.c b/drivers/input/misc/s2mpu06-pwrkey.c
+new file mode 100644
+index 000000000..4b811a639
+--- /dev/null
++++ b/drivers/input/misc/s2mpu06-pwrkey.c
+@@ -0,0 +1,89 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Power key of the Samsung S2MPU06 PMIC
++ *
++ * The PMIC reports the falling (pressed) and rising (released) edge of the key as
++ * two interrupts.
++ */
++
++#include <linux/input.h>
++#include <linux/interrupt.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++
++static irqreturn_t s2mpu06_pwrkey_press(int irq, void *data)
++{
++	struct input_dev *input = data;
++
++	input_report_key(input, KEY_POWER, 1);
++	input_sync(input);
++
++	return IRQ_HANDLED;
++}
++
++static irqreturn_t s2mpu06_pwrkey_release(int irq, void *data)
++{
++	struct input_dev *input = data;
++
++	input_report_key(input, KEY_POWER, 0);
++	input_sync(input);
++
++	return IRQ_HANDLED;
++}
++
++static int s2mpu06_pwrkey_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct input_dev *input;
++	int irq_f, irq_r, ret;
++
++	irq_f = platform_get_irq_byname(pdev, "pwronf");
++	if (irq_f < 0)
++		return irq_f;
++	irq_r = platform_get_irq_byname(pdev, "pwronr");
++	if (irq_r < 0)
++		return irq_r;
++
++	input = devm_input_allocate_device(dev);
++	if (!input)
++		return -ENOMEM;
++
++	input->name = "s2mpu06-pwrkey";
++	input->phys = "s2mpu06-pwrkey/input0";
++	input_set_capability(input, EV_KEY, KEY_POWER);
++
++	ret = devm_request_threaded_irq(dev, irq_f, NULL, s2mpu06_pwrkey_press,
++					IRQF_ONESHOT, "pwronf", input);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot request the press irq\n");
++
++	ret = devm_request_threaded_irq(dev, irq_r, NULL, s2mpu06_pwrkey_release,
++					IRQF_ONESHOT, "pwronr", input);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot request the release irq\n");
++
++	ret = input_register_device(input);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot register the input device\n");
++
++	device_init_wakeup(dev, true);
++	return 0;
++}
++
++static const struct platform_device_id s2mpu06_pwrkey_id[] = {
++	{ "s2mpu06-pwrkey" },
++	{ }
++};
++MODULE_DEVICE_TABLE(platform, s2mpu06_pwrkey_id);
++
++static struct platform_driver s2mpu06_pwrkey_driver = {
++	.probe = s2mpu06_pwrkey_probe,
++	.driver = {
++		.name = "s2mpu06-pwrkey",
++	},
++	.id_table = s2mpu06_pwrkey_id,
++};
++module_platform_driver(s2mpu06_pwrkey_driver);
++
++MODULE_DESCRIPTION("Samsung S2MPU06 PMIC power key driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/mfd/Kconfig b/drivers/mfd/Kconfig
+index f08b8009e..79ca51ce2 100644
+--- a/drivers/mfd/Kconfig
++++ b/drivers/mfd/Kconfig
+@@ -1314,6 +1314,16 @@ config MFD_RN5T618
+ 	  additional drivers must be enabled in order to use the
+ 	  functionality of the device.
+ 
++config MFD_S2MPU06
++	tristate "Samsung S2MPU06 PMIC on a SPEEDY bus"
++	depends on EXYNOS_SPEEDY
++	select MFD_CORE
++	select REGMAP_IRQ
++	help
++	  Support for the Samsung S2MPU06 PMIC found with the Exynos7570. This
++	  provides the interrupt controller and the sub-device cells (regulators,
++	  power key) of the PMIC.
++
+ config MFD_SEC_CORE
+ 	tristate "Samsung Electronics PMIC Series Support"
+ 	depends on I2C=y
+diff --git a/drivers/mfd/Makefile b/drivers/mfd/Makefile
+index 2a9f91e81..af1ccafec 100644
+--- a/drivers/mfd/Makefile
++++ b/drivers/mfd/Makefile
+@@ -232,6 +232,7 @@ obj-$(CONFIG_MFD_RK8XX_I2C)	+= rk8xx-i2c.o
+ obj-$(CONFIG_MFD_RK8XX_SPI)	+= rk8xx-spi.o
+ obj-$(CONFIG_MFD_RN5T618)	+= rn5t618.o
+ obj-$(CONFIG_MFD_SEC_CORE)	+= sec-core.o sec-irq.o
++obj-$(CONFIG_MFD_S2MPU06)	+= s2mpu06.o
+ obj-$(CONFIG_MFD_SYSCON)	+= syscon.o
+ obj-$(CONFIG_MFD_LM3533)	+= lm3533-core.o lm3533-ctrlbank.o
+ obj-$(CONFIG_MFD_VEXPRESS_SYSREG)	+= vexpress-sysreg.o
+diff --git a/drivers/mfd/s2mpu06.c b/drivers/mfd/s2mpu06.c
+new file mode 100644
+index 000000000..fc68bd78f
+--- /dev/null
++++ b/drivers/mfd/s2mpu06.c
+@@ -0,0 +1,187 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * MFD core of the Samsung S2MPU06 PMIC on a SPEEDY bus
++ *
++ * The PMIC keeps one level-low interrupt line for all its functions. The top
++ * block's INTSRC says which function raised it; only the PMIC block's INT1..3
++ * are handled here (as a regmap-irq chip), the charger, fuel gauge and codec
++ * sources are only acknowledged by reading their status registers (which
++ * clears them) until their drivers exist.
++ */
++
++#include <linux/interrupt.h>
++#include <linux/mfd/core.h>
++#include <linux/mfd/samsung/s2mpu06.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/platform_device.h>
++#include <linux/regmap.h>
++#include <linux/soc/samsung/exynos-speedy.h>
++
++#define S2MPU06_TOP_PMICID		0x00
++#define S2MPU06_TOP_INTSRC		0x05
++
++#define S2MPU06_INTSRC_PMIC		BIT(0)
++#define S2MPU06_INTSRC_CODEC		BIT(1)
++#define S2MPU06_INTSRC_CHG		BIT(2)
++#define S2MPU06_INTSRC_FG		BIT(4)
++
++#define S2MPU06_PMIC_INT1		0x00
++#define S2MPU06_PMIC_INT1M		0x03
++#define S2MPU06_NUM_IRQ_REGS		3
++
++#define S2MPU06_CHG_INT1		0x00	/* INT1..3 and PMIC_INT, read to clear */
++#define S2MPU06_CHG_NUM_INT		4
++#define S2MPU06_FG_IRQ_INT		0x02
++#define S2MPU06_CODEC_INT1		0x01	/* INT1..3, read to clear */
++
++#define S2MPU06_IRQ(_irq, _reg, _bit)	\
++	[_irq] = { .reg_offset = (_reg), .mask = BIT(_bit) }
++
++static const struct regmap_irq s2mpu06_irqs[] = {
++	S2MPU06_IRQ(S2MPU06_IRQ_PWRONF, 0, 0),
++	S2MPU06_IRQ(S2MPU06_IRQ_PWRONR, 0, 1),
++	S2MPU06_IRQ(S2MPU06_IRQ_JIGONBF, 0, 2),
++	S2MPU06_IRQ(S2MPU06_IRQ_JIGONBR, 0, 3),
++	S2MPU06_IRQ(S2MPU06_IRQ_ACOKBF, 0, 4),
++	S2MPU06_IRQ(S2MPU06_IRQ_ACOKBR, 0, 5),
++	S2MPU06_IRQ(S2MPU06_IRQ_PWRON1S, 0, 6),
++	S2MPU06_IRQ(S2MPU06_IRQ_MRB, 0, 7),
++	S2MPU06_IRQ(S2MPU06_IRQ_RTC60S, 1, 0),
++	S2MPU06_IRQ(S2MPU06_IRQ_RTCA1, 1, 1),
++	S2MPU06_IRQ(S2MPU06_IRQ_RTCA0, 1, 2),
++	S2MPU06_IRQ(S2MPU06_IRQ_SMPL, 1, 3),
++	S2MPU06_IRQ(S2MPU06_IRQ_RTC1S, 1, 4),
++	S2MPU06_IRQ(S2MPU06_IRQ_WTSR, 1, 5),
++	S2MPU06_IRQ(S2MPU06_IRQ_WRSTB, 1, 7),
++	S2MPU06_IRQ(S2MPU06_IRQ_120C, 2, 0),
++	S2MPU06_IRQ(S2MPU06_IRQ_140C, 2, 1),
++	S2MPU06_IRQ(S2MPU06_IRQ_TSD, 2, 2),
++};
++
++/* runs with the IRQ line asserted, before the PMIC block's INT1..3 are read */
++static int s2mpu06_irq_pre(void *data)
++{
++	struct s2mpu06 *s2m = data;
++	u8 buf[S2MPU06_CHG_NUM_INT];
++	unsigned int src;
++	int ret;
++
++	ret = regmap_read(s2m->top, S2MPU06_TOP_INTSRC, &src);
++	if (ret)
++		return ret;
++
++	if ((src & S2MPU06_INTSRC_CHG) && s2m->chg)
++		regmap_bulk_read(s2m->chg, S2MPU06_CHG_INT1, buf, S2MPU06_CHG_NUM_INT);
++	if ((src & S2MPU06_INTSRC_FG) && s2m->fg)
++		regmap_read(s2m->fg, S2MPU06_FG_IRQ_INT, &ret);
++	if ((src & S2MPU06_INTSRC_CODEC) && s2m->codec)
++		regmap_bulk_read(s2m->codec, S2MPU06_CODEC_INT1, buf, 3);
++
++	return 0;
++}
++
++static const struct regmap_irq_chip s2mpu06_irq_chip = {
++	.name = "s2mpu06",
++	.status_base = S2MPU06_PMIC_INT1,
++	.mask_base = S2MPU06_PMIC_INT1M,
++	.num_regs = S2MPU06_NUM_IRQ_REGS,
++	.irqs = s2mpu06_irqs,
++	.num_irqs = ARRAY_SIZE(s2mpu06_irqs),
++	.handle_pre_irq = s2mpu06_irq_pre,
++};
++
++static const struct resource s2mpu06_pwrkey_res[] = {
++	DEFINE_RES_IRQ_NAMED(S2MPU06_IRQ_PWRONF, "pwronf"),
++	DEFINE_RES_IRQ_NAMED(S2MPU06_IRQ_PWRONR, "pwronr"),
++};
++
++static const struct mfd_cell s2mpu06_cells[] = {
++	{ .name = "s2mpu06-regulator" },
++	{
++		.name = "s2mpu06-pwrkey",
++		.num_resources = ARRAY_SIZE(s2mpu06_pwrkey_res),
++		.resources = s2mpu06_pwrkey_res,
++	},
++};
++
++static int s2mpu06_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct s2mpu06 *s2m;
++	unsigned int id;
++	int irq, ret;
++
++	s2m = devm_kzalloc(dev, sizeof(*s2m), GFP_KERNEL);
++	if (!s2m)
++		return -ENOMEM;
++	s2m->dev = dev;
++
++	s2m->top = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_TOP);
++	if (IS_ERR(s2m->top))
++		return dev_err_probe(dev, PTR_ERR(s2m->top), "cannot get TOP regmap\n");
++
++	s2m->pmic = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_PMIC);
++	if (IS_ERR(s2m->pmic))
++		return dev_err_probe(dev, PTR_ERR(s2m->pmic), "cannot get PMIC regmap\n");
++
++	/* these only exist to acknowledge interrupts, so failing to get them is harmless */
++	s2m->chg = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_CHG);
++	if (IS_ERR(s2m->chg))
++		s2m->chg = NULL;
++	s2m->fg = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_FG);
++	if (IS_ERR(s2m->fg))
++		s2m->fg = NULL;
++	s2m->codec = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_CODEC);
++	if (IS_ERR(s2m->codec))
++		s2m->codec = NULL;
++
++	ret = regmap_read(s2m->top, S2MPU06_TOP_PMICID, &id);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot read the PMIC id\n");
++	dev_info(dev, "S2MPU06 PMIC id %#x\n", id);
++
++	platform_set_drvdata(pdev, s2m);
++
++	irq = platform_get_irq(pdev, 0);
++	if (irq < 0)
++		return irq;
++
++	/* the chip's irq_pre callback needs the context, so build it per device */
++	{
++		struct regmap_irq_chip *chip;
++
++		chip = devm_kmemdup(dev, &s2mpu06_irq_chip, sizeof(*chip), GFP_KERNEL);
++		if (!chip)
++			return -ENOMEM;
++		chip->irq_drv_data = s2m;
++		ret = devm_regmap_add_irq_chip(dev, s2m->pmic, irq,
++					       IRQF_ONESHOT | IRQF_TRIGGER_LOW, 0,
++					       chip, &s2m->irq_data);
++	}
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot add the irq chip\n");
++
++	return devm_mfd_add_devices(dev, PLATFORM_DEVID_AUTO, s2mpu06_cells,
++				    ARRAY_SIZE(s2mpu06_cells), NULL, 0,
++				    regmap_irq_get_domain(s2m->irq_data));
++}
++
++static const struct of_device_id s2mpu06_of_match[] = {
++	{ .compatible = "samsung,s2mpu06-pmic" },
++	{ }
++};
++MODULE_DEVICE_TABLE(of, s2mpu06_of_match);
++
++static struct platform_driver s2mpu06_driver = {
++	.probe = s2mpu06_probe,
++	.driver = {
++		.name = "s2mpu06",
++		.of_match_table = s2mpu06_of_match,
++	},
++};
++module_platform_driver(s2mpu06_driver);
++
++MODULE_DESCRIPTION("Samsung S2MPU06 PMIC core driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/regulator/Kconfig b/drivers/regulator/Kconfig
+index 9361c0f4f..96610465e 100644
+--- a/drivers/regulator/Kconfig
++++ b/drivers/regulator/Kconfig
+@@ -1340,7 +1340,7 @@ config REGULATOR_S2MPS11
+ 
+ config REGULATOR_S2MPU06
+ 	tristate "Samsung S2MPU06 voltage regulator"
+-	depends on EXYNOS_SPEEDY
++	depends on MFD_S2MPU06
+ 	help
+ 	  This driver supports the voltage regulators of the Samsung
+ 	  S2MPU06 PMIC, which sits on the SPEEDY bus of Exynos7570.
+diff --git a/drivers/regulator/s2mpu06-regulator.c b/drivers/regulator/s2mpu06-regulator.c
+index bcac86a77..f60b8a41c 100644
+--- a/drivers/regulator/s2mpu06-regulator.c
++++ b/drivers/regulator/s2mpu06-regulator.c
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include <linux/bits.h>
++#include <linux/mfd/samsung/s2mpu06.h>
+ #include <linux/mod_devicetable.h>
+ #include <linux/module.h>
+ #include <linux/of.h>
+@@ -14,13 +15,6 @@
+ #include <linux/regmap.h>
+ #include <linux/regulator/driver.h>
+ #include <linux/regulator/of_regulator.h>
+-#include <linux/soc/samsung/exynos-speedy.h>
+-
+-/* SPEEDY block ids */
+-#define S2MPU06_BLK_TOP			0
+-#define S2MPU06_BLK_PMIC		1
+-
+-#define S2MPU06_TOP_PMICID		0x00
+ 
+ #define S2MPU06_REG_B1CTRL		0x13
+ #define S2MPU06_REG_B1OUT2		0x15
+@@ -164,31 +158,20 @@ static const struct regulator_desc s2mpu06_regulators[] = {
+ static int s2mpu06_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev = &pdev->dev;
++	struct s2mpu06 *s2m = dev_get_drvdata(dev->parent);
+ 	struct regulator_config config = { };
+ 	struct device_node *regs_np;
+-	struct regmap *top, *pmic;
+-	unsigned int id;
+ 	int i, ret;
+ 
+-	top = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_TOP);
+-	if (IS_ERR(top))
+-		return dev_err_probe(dev, PTR_ERR(top), "cannot get TOP regmap\n");
+-
+-	pmic = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_PMIC);
+-	if (IS_ERR(pmic))
+-		return dev_err_probe(dev, PTR_ERR(pmic), "cannot get PMIC regmap\n");
+-
+-	ret = regmap_read(top, S2MPU06_TOP_PMICID, &id);
+-	if (ret)
+-		return dev_err_probe(dev, ret, "cannot read the PMIC id\n");
+-	dev_info(dev, "S2MPU06 PMIC id %#x\n", id);
++	/* the regulators node lives under the PMIC node */
++	device_set_of_node_from_dev(dev, dev->parent);
+ 
+ 	regs_np = of_get_child_by_name(dev->of_node, "regulators");
+ 	if (!regs_np)
+ 		return dev_err_probe(dev, -EINVAL, "no regulators node\n");
+ 
+ 	config.dev = dev;
+-	config.regmap = pmic;
++	config.regmap = s2m->pmic;
+ 
+ 	for (i = 0; i < ARRAY_SIZE(s2mpu06_regulators); i++) {
+ 		struct device_node *np;
+@@ -213,20 +196,20 @@ static int s2mpu06_probe(struct platform_device *pdev)
+ 	return 0;
+ }
+ 
+-static const struct of_device_id s2mpu06_of_match[] = {
+-	{ .compatible = "samsung,s2mpu06-pmic" },
++static const struct platform_device_id s2mpu06_regulator_id[] = {
++	{ "s2mpu06-regulator" },
+ 	{ }
+ };
+-MODULE_DEVICE_TABLE(of, s2mpu06_of_match);
++MODULE_DEVICE_TABLE(platform, s2mpu06_regulator_id);
+ 
+-static struct platform_driver s2mpu06_driver = {
++static struct platform_driver s2mpu06_regulator_driver = {
+ 	.probe = s2mpu06_probe,
+ 	.driver = {
+ 		.name = "s2mpu06-regulator",
+-		.of_match_table = s2mpu06_of_match,
+ 	},
++	.id_table = s2mpu06_regulator_id,
+ };
+-module_platform_driver(s2mpu06_driver);
++module_platform_driver(s2mpu06_regulator_driver);
+ 
+ MODULE_DESCRIPTION("Samsung S2MPU06 regulator driver");
+ MODULE_LICENSE("GPL");
+diff --git a/include/linux/mfd/samsung/s2mpu06.h b/include/linux/mfd/samsung/s2mpu06.h
+new file mode 100644
+index 000000000..4a6755f4d
+--- /dev/null
++++ b/include/linux/mfd/samsung/s2mpu06.h
+@@ -0,0 +1,58 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Samsung S2MPU06 PMIC on a SPEEDY bus
++ */
++
++#ifndef __LINUX_MFD_S2MPU06_H
++#define __LINUX_MFD_S2MPU06_H
++
++struct device;
++struct regmap;
++
++/* SPEEDY block ids of the S2MPU06's functions */
++#define S2MPU06_BLK_TOP		0
++#define S2MPU06_BLK_PMIC	1
++#define S2MPU06_BLK_RTC		2
++#define S2MPU06_BLK_CODEC	3
++#define S2MPU06_BLK_CHG		4
++#define S2MPU06_BLK_FG		5
++#define S2MPU06_BLK_FLED	6
++
++/* PMIC interrupts (INT1..INT3 of the PMIC block), as hwirq numbers */
++enum s2mpu06_irq {
++	S2MPU06_IRQ_PWRONF,
++	S2MPU06_IRQ_PWRONR,
++	S2MPU06_IRQ_JIGONBF,
++	S2MPU06_IRQ_JIGONBR,
++	S2MPU06_IRQ_ACOKBF,
++	S2MPU06_IRQ_ACOKBR,
++	S2MPU06_IRQ_PWRON1S,
++	S2MPU06_IRQ_MRB,
++
++	S2MPU06_IRQ_RTC60S,
++	S2MPU06_IRQ_RTCA1,
++	S2MPU06_IRQ_RTCA0,
++	S2MPU06_IRQ_SMPL,
++	S2MPU06_IRQ_RTC1S,
++	S2MPU06_IRQ_WTSR,
++	S2MPU06_IRQ_WRSTB,
++
++	S2MPU06_IRQ_120C,
++	S2MPU06_IRQ_140C,
++	S2MPU06_IRQ_TSD,
++
++	S2MPU06_IRQ_NR,
++};
++
++/* data the MFD core shares with its cells through the parent's drvdata */
++struct s2mpu06 {
++	struct device *dev;
++	struct regmap *top;
++	struct regmap *pmic;
++	struct regmap *chg;
++	struct regmap *fg;
++	struct regmap *codec;
++	struct regmap_irq_chip_data *irq_data;
++};
++
++#endif

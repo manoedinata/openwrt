@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 08:15:13 +0700
+Subject: [PATCH 45/92] clk: samsung: exynos7570: keep the USB PHY clock gate
+ enabled
+
+The PHY driver enables its 'phy' clock only around the PHY initialisation and
+drops it afterwards. That clock is the UTMI clock the PHY gives back to the
+controller, which stops working without it: the gadget failed with 'failed
+to enable ep0out'. Mark the gate critical, as it is on the Exynos7870.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 99365ca3536e0849b7e4b99bfff2ac0a723706e7)
+---
+ drivers/clk/samsung/clk-exynos7570.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/clk/samsung/clk-exynos7570.c b/drivers/clk/samsung/clk-exynos7570.c
+index 59129ca2e..6b9d5737d 100644
+--- a/drivers/clk/samsung/clk-exynos7570.c
++++ b/drivers/clk/samsung/clk-exynos7570.c
+@@ -273,7 +273,7 @@ static const struct samsung_gate_clock fsys_gate_clks[] __initconst = {
+ 	GATE(CLK_GOUT_FSYS_USB20DRD_HCLK_CTRL, "gout_fsys_usb20drd_hclk_ctrl", "gout_mif_cmu_fsys_bus", CLK_ENABLE_CLK_FSYS_BUS, 21, CLK_SET_RATE_PARENT, 0),
+ 	GATE(CLK_GOUT_FSYS_USB20DRD_ACLK_HSDRD, "gout_fsys_usb20drd_aclk_hsdrd", "gout_mif_cmu_fsys_bus", CLK_ENABLE_CLK_FSYS_BUS, 20, CLK_SET_RATE_PARENT, 0),
+ 	GATE(CLK_GOUT_FSYS_USB20DRD_REF_CLK, "gout_fsys_usb20drd_ref_clk", "gout_mif_cmu_fsys_usb20drd_refclk", CLK_ENABLE_CLK_FSYS_USB20DRD_REFCLK, 0, CLK_SET_RATE_PARENT, 0),
+-	GATE(CLK_GOUT_FSYS_USB20DRD_PHYCLOCK, "gout_fsys_usb20drd_phyclock", "mout_fsys_usb20drd_phyclock_user", CLK_ENABLE_CLKPHY_FSYS_USB20DRD_PHYCLOCK, 0, CLK_SET_RATE_PARENT, 0),
++	GATE(CLK_GOUT_FSYS_USB20DRD_PHYCLOCK, "gout_fsys_usb20drd_phyclock", "mout_fsys_usb20drd_phyclock_user", CLK_ENABLE_CLKPHY_FSYS_USB20DRD_PHYCLOCK, 0, CLK_IS_CRITICAL, 0),
+ 	GATE(CLK_GOUT_FSYS_USB20DRD_CLKCORE, "gout_fsys_usb20drd_clkcore", "fout_fsys_wpll_usb", CLK_ENABLE_CLK_FSYS_USB20PHY_CLKCORE, 0, CLK_SET_RATE_PARENT, 0),
+ 	GATE(CLK_GOUT_FSYS_GPIO_PCLK, "gout_fsys_gpio_pclk", "gout_mif_cmu_fsys_bus", CLK_ENABLE_CLK_FSYS_BUS, 13, CLK_IS_CRITICAL, 0),
+ 	GATE(CLK_GOUT_FSYS_SYSREG_PCLK, "gout_fsys_sysreg_pclk", "gout_mif_cmu_fsys_bus", CLK_ENABLE_CLK_FSYS_BUS, 19, CLK_IS_CRITICAL, 0),

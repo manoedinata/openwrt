@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Andr=C3=A9=20Draszik?= <andre.draszik@linaro.org>
+Date: Tue, 29 Apr 2025 09:49:24 +0100
+Subject: [PATCH 17/92] phy: exynos5-usbdrd: fix setting LINKSYSTEM_FLADJ on
+ exynos7870
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The code here is trying to set the FLADJ field to 0x20, so it should
+clear any previous value in that field before or'ing-in the new value.
+
+Fixes: 588d5d20ca8d ("phy: exynos5-usbdrd: add exynos7870 USBDRD support")
+Signed-off-by: André Draszik <andre.draszik@linaro.org>
+Link: https://lore.kernel.org/r/20250429-exynos5-phy-field-prep-v1-1-39eb279a3e0e@linaro.org
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+(cherry picked from commit b45791d48752418c805ae7417dcea85a40d5a41e):
+---
+ drivers/phy/samsung/phy-exynos5-usbdrd.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/phy/samsung/phy-exynos5-usbdrd.c b/drivers/phy/samsung/phy-exynos5-usbdrd.c
+index fb44f4dea..cd7b56c2a 100644
+--- a/drivers/phy/samsung/phy-exynos5-usbdrd.c
++++ b/drivers/phy/samsung/phy-exynos5-usbdrd.c
+@@ -1160,6 +1160,7 @@ static void exynos7870_usbdrd_utmi_init(struct exynos5_usbdrd_phy *phy_drd)
+ 	 * See xHCI 1.0 spec, 5.2.4
+ 	 */
+ 	reg |= LINKSYSTEM_XHCI_VERSION_CONTROL;
++	reg &= ~LINKSYSTEM_FLADJ;
+ 	reg |= FIELD_PREP_CONST(LINKSYSTEM_FLADJ, 0x20);
+ 	/* Set VBUSVALID signal as the VBUS pad is not used */
+ 	reg |= LINKSYSTEM_FORCE_BVALID;

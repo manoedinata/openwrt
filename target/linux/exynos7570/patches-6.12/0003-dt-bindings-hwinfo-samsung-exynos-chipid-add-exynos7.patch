@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Wed, 19 Feb 2025 00:33:11 +0530
+Subject: [PATCH 03/92] dt-bindings: hwinfo: samsung,exynos-chipid: add
+ exynos7870-chipid compatible
+
+Document the compatible string "samsung,exynos7870-chipid". The
+registers are entirely compatible with "samsung,exynos4210-chipid".
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Link: https://lore.kernel.org/r/20250219-exynos7870-v3-1-e384fb610cad@disroot.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+(cherry picked from commit 0a86ea5534a9e4ae988a2e174e741b102d8a8691):
+---
+ .../devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml        | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml b/Documentation/devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml
+index 780ccb5ee..54699583f 100644
+--- a/Documentation/devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml
++++ b/Documentation/devicetree/bindings/hwinfo/samsung,exynos-chipid.yaml
+@@ -19,6 +19,7 @@ properties:
+           - enum:
+               - samsung,exynos5433-chipid
+               - samsung,exynos7-chipid
++              - samsung,exynos7870-chipid
+           - const: samsung,exynos4210-chipid
+       - items:
+           - enum:

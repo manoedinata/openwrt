@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Thu, 10 Jul 2025 16:42:48 +0530
+Subject: [PATCH 20/92] phy: exynos-mipi-video: correct cam0 sysreg property
+ name for exynos7870
+
+Fix the cam0 sysreg property name (samsung,cam0-sysreg), which has been
+erroneously declared as samsung,cam-sysreg. This follows the same name
+used in Exynos5433 PHY.
+
+Fixes: 543f5e314282 ("phy: exynos-mipi-video: introduce support for exynos7870")
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Link: https://lore.kernel.org/r/20250710-exynos7870-mipi-phy-fix-v2-1-5cf50d69c9d7@disroot.org
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+(cherry picked from commit f31ac39c037a77a87e210b0f6d86fdefe8fc7258):
+---
+ drivers/phy/samsung/phy-exynos-mipi-video.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/phy/samsung/phy-exynos-mipi-video.c b/drivers/phy/samsung/phy-exynos-mipi-video.c
+index b184923b9..be925508e 100644
+--- a/drivers/phy/samsung/phy-exynos-mipi-video.c
++++ b/drivers/phy/samsung/phy-exynos-mipi-video.c
+@@ -218,7 +218,7 @@ static const struct mipi_phy_device_desc exynos7870_mipi_phy = {
+ 	.regmap_names = {
+ 		"samsung,pmu-syscon",
+ 		"samsung,disp-sysreg",
+-		"samsung,cam-sysreg"
++		"samsung,cam0-sysreg"
+ 	},
+ 	.num_phys = 4,
+ 	.phys = {

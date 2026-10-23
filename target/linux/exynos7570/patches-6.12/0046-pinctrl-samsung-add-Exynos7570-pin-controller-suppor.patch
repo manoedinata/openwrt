@@ -1,0 +1,294 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 08:47:36 +0700
+Subject: [PATCH 46/92] pinctrl: samsung: add Exynos7570 pin controller support
+
+Eight pin controller instances (ALIVE, DISPAUD, ESE, FSYS, MIF, NFC, TOP,
+TOUCH) sharing the Exynos7870 register layouts, with the SoC's own bank
+set. The ALIVE block carries the wakeup EINT on SPI 16.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 8fe4ee70a0c8614b9132e023065f27b6384020e7)
+---
+ .../samsung,pinctrl-wakeup-interrupt.yaml     |   2 +
+ .../bindings/pinctrl/samsung,pinctrl.yaml     |   1 +
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi    |  64 ++++++++++
+ .../pinctrl/samsung/pinctrl-exynos-arm64.c    | 117 ++++++++++++++++++
+ drivers/pinctrl/samsung/pinctrl-samsung.c     |   2 +
+ drivers/pinctrl/samsung/pinctrl-samsung.h     |   1 +
+ 6 files changed, 187 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl-wakeup-interrupt.yaml b/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl-wakeup-interrupt.yaml
+index ce8c265eb..c70539155 100644
+--- a/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl-wakeup-interrupt.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl-wakeup-interrupt.yaml
+@@ -40,6 +40,7 @@ properties:
+       - items:
+           - enum:
+               - samsung,exynos5433-wakeup-eint
++              - samsung,exynos7570-wakeup-eint
+               - samsung,exynos7870-wakeup-eint
+               - samsung,exynos7885-wakeup-eint
+               - samsung,exynos850-wakeup-eint
+@@ -102,6 +103,7 @@ allOf:
+             - contains:
+                 enum:
+                   - samsung,exynos5433-wakeup-eint
++                  - samsung,exynos7570-wakeup-eint
+                   - samsung,exynos7870-wakeup-eint
+                   - samsung,exynos7885-wakeup-eint
+     then:
+diff --git a/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml
+index 0c239b5a2..b0b752181 100644
+--- a/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml
+@@ -51,6 +51,7 @@ properties:
+       - samsung,exynos5420-pinctrl
+       - samsung,exynos5433-pinctrl
+       - samsung,exynos7-pinctrl
++      - samsung,exynos7570-pinctrl
+       - samsung,exynos7870-pinctrl
+       - samsung,exynos7885-pinctrl
+       - samsung,exynos850-pinctrl
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index 101bfeb59..e1613e6c9 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -15,6 +15,17 @@ / {
+ 
+ 	interrupt-parent = <&gic>;
+ 
++	aliases {
++		pinctrl0 = &pinctrl_alive;
++		pinctrl1 = &pinctrl_dispaud;
++		pinctrl2 = &pinctrl_ese;
++		pinctrl3 = &pinctrl_fsys;
++		pinctrl4 = &pinctrl_mif;
++		pinctrl5 = &pinctrl_nfc;
++		pinctrl6 = &pinctrl_top;
++		pinctrl7 = &pinctrl_touch;
++	};
++
+ 	cpus {
+ 		#address-cells = <1>;
+ 		#size-cells = <0>;
+@@ -118,6 +129,12 @@ cmu_mif: clock-controller@10460000 {
+ 			clocks = <&oscclk>;
+ 		};
+ 
++		pinctrl_mif: pinctrl@10530000 {
++			compatible = "samsung,exynos7570-pinctrl";
++			reg = <0x10530000 0x1000>;
++			interrupts = <GIC_SPI 392 IRQ_TYPE_LEVEL_HIGH>;
++		};
++
+ 		gic: interrupt-controller@104e1000 {
+ 			compatible = "arm,cortex-a15-gic";
+ 			reg = <0x104e1000 0x1000>,
+@@ -230,6 +247,53 @@ reboot-mode {
+ 				mode-recovery = <0x12345674>;
+ 			};
+ 		};
++
++		pinctrl_fsys: pinctrl@13750000 {
++			compatible = "samsung,exynos7570-pinctrl";
++			reg = <0x13750000 0x1000>;
++			interrupts = <GIC_SPI 250 IRQ_TYPE_LEVEL_HIGH>;
++		};
++
++		pinctrl_top: pinctrl@139b0000 {
++			compatible = "samsung,exynos7570-pinctrl";
++			reg = <0x139b0000 0x1000>;
++			interrupts = <GIC_SPI 438 IRQ_TYPE_LEVEL_HIGH>;
++		};
++
++		pinctrl_nfc: pinctrl@139c0000 {
++			compatible = "samsung,exynos7570-pinctrl";
++			reg = <0x139c0000 0x1000>;
++			interrupts = <GIC_SPI 439 IRQ_TYPE_LEVEL_HIGH>;
++		};
++
++		pinctrl_touch: pinctrl@139d0000 {
++			compatible = "samsung,exynos7570-pinctrl";
++			reg = <0x139d0000 0x1000>;
++			interrupts = <GIC_SPI 440 IRQ_TYPE_LEVEL_HIGH>;
++		};
++
++		pinctrl_ese: pinctrl@139e0000 {
++			compatible = "samsung,exynos7570-pinctrl";
++			reg = <0x139e0000 0x1000>;
++			interrupts = <GIC_SPI 441 IRQ_TYPE_LEVEL_HIGH>;
++		};
++
++		pinctrl_alive: pinctrl@139f0000 {
++			compatible = "samsung,exynos7570-pinctrl";
++			reg = <0x139f0000 0x1000>;
++
++			wakeup-interrupt-controller {
++				compatible = "samsung,exynos7570-wakeup-eint",
++					     "samsung,exynos7-wakeup-eint";
++				interrupts = <GIC_SPI 16 IRQ_TYPE_LEVEL_HIGH>;
++			};
++		};
++
++		pinctrl_dispaud: pinctrl@148c0000 {
++			compatible = "samsung,exynos7570-pinctrl";
++			reg = <0x148c0000 0x1000>;
++			interrupts = <GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>;
++		};
+ 	};
+ 
+ 	timer {
+diff --git a/drivers/pinctrl/samsung/pinctrl-exynos-arm64.c b/drivers/pinctrl/samsung/pinctrl-exynos-arm64.c
+index 812d87290..54dd967f8 100644
+--- a/drivers/pinctrl/samsung/pinctrl-exynos-arm64.c
++++ b/drivers/pinctrl/samsung/pinctrl-exynos-arm64.c
+@@ -459,6 +459,123 @@ const struct samsung_pinctrl_of_match_data exynos7_of_data __initconst = {
+ 	.num_ctrl	= ARRAY_SIZE(exynos7_pin_ctrl),
+ };
+ 
++/* pin banks of exynos7570 pin-controller 0 (ALIVE) */
++static const struct samsung_pin_bank_data exynos7570_pin_banks0[] __initconst = {
++	EXYNOS7870_PIN_BANK_EINTN(7, 0x000, "etc0"),
++	EXYNOS7870_PIN_BANK_EINTN(3, 0x020, "etc1"),
++	EXYNOS7870_PIN_BANK_EINTW(8, 0x040, "gpa0", 0x00),
++	EXYNOS7870_PIN_BANK_EINTW(8, 0x060, "gpa1", 0x04),
++	EXYNOS7870_PIN_BANK_EINTW(8, 0x080, "gpa2", 0x08),
++	EXYNOS7870_PIN_BANK_EINTN(1, 0x0a0, "gpq0"),
++};
++
++/* pin banks of exynos7570 pin-controller 1 (DISPAUD) */
++static const struct samsung_pin_bank_data exynos7570_pin_banks1[] __initconst = {
++	EXYNOS8895_PIN_BANK_EINTG(7, 0x000, "gpz1", 0x00),
++};
++
++/* pin banks of exynos7570 pin-controller 2 (ESE) */
++static const struct samsung_pin_bank_data exynos7570_pin_banks2[] __initconst = {
++	EXYNOS8895_PIN_BANK_EINTG(5, 0x000, "gpc7", 0x00),
++};
++
++/* pin banks of exynos7570 pin-controller 3 (FSYS) */
++static const struct samsung_pin_bank_data exynos7570_pin_banks3[] __initconst = {
++	EXYNOS8895_PIN_BANK_EINTG(3, 0x000, "gpr0", 0x00),
++	EXYNOS8895_PIN_BANK_EINTG(8, 0x020, "gpr1", 0x04),
++	EXYNOS8895_PIN_BANK_EINTG(6, 0x040, "gpr4", 0x08),
++};
++
++/* pin banks of exynos7570 pin-controller 4 (MIF) */
++static const struct samsung_pin_bank_data exynos7570_pin_banks4[] __initconst = {
++	EXYNOS8895_PIN_BANK_EINTG(1, 0x000, "gpm0", 0x00),
++};
++
++/* pin banks of exynos7570 pin-controller 5 (NFC) */
++static const struct samsung_pin_bank_data exynos7570_pin_banks5[] __initconst = {
++	EXYNOS8895_PIN_BANK_EINTG(4, 0x000, "gpc2", 0x00),
++};
++
++/* pin banks of exynos7570 pin-controller 6 (TOP) */
++static const struct samsung_pin_bank_data exynos7570_pin_banks6[] __initconst = {
++	EXYNOS8895_PIN_BANK_EINTG(3, 0x000, "gpc0", 0x00),
++	EXYNOS8895_PIN_BANK_EINTG(4, 0x020, "gpc1", 0x04),
++	EXYNOS8895_PIN_BANK_EINTG(4, 0x040, "gpc4", 0x08),
++	EXYNOS8895_PIN_BANK_EINTG(7, 0x060, "gpd1", 0x0c),
++	EXYNOS8895_PIN_BANK_EINTG(3, 0x080, "gpe0", 0x10),
++	EXYNOS8895_PIN_BANK_EINTG(4, 0x0a0, "gpf0", 0x14),
++	EXYNOS8895_PIN_BANK_EINTG(2, 0x0c0, "gpf1", 0x18),
++	EXYNOS8895_PIN_BANK_EINTG(4, 0x0e0, "gpf3", 0x1c),
++};
++
++/* pin banks of exynos7570 pin-controller 7 (TOUCH) */
++static const struct samsung_pin_bank_data exynos7570_pin_banks7[] __initconst = {
++	EXYNOS8895_PIN_BANK_EINTG(3, 0x000, "gpc3", 0x00),
++	EXYNOS8895_PIN_BANK_EINTG(1, 0x020, "gpd2", 0x04),
++};
++
++static const struct samsung_pin_ctrl exynos7570_pin_ctrl[] __initconst = {
++	{
++		/* pin-controller instance 0 Alive data */
++		.pin_banks	= exynos7570_pin_banks0,
++		.nr_banks	= ARRAY_SIZE(exynos7570_pin_banks0),
++		.eint_wkup_init = exynos_eint_wkup_init,
++		.suspend	= exynos_pinctrl_suspend,
++		.resume		= exynos_pinctrl_resume,
++	}, 	{
++		/* pin-controller instance 1 DISPAUD data */
++		.pin_banks	= exynos7570_pin_banks1,
++		.nr_banks	= ARRAY_SIZE(exynos7570_pin_banks1),
++	}, 	{
++		/* pin-controller instance 2 ESE data */
++		.pin_banks	= exynos7570_pin_banks2,
++		.nr_banks	= ARRAY_SIZE(exynos7570_pin_banks2),
++		.eint_gpio_init = exynos_eint_gpio_init,
++		.suspend	= exynos_pinctrl_suspend,
++		.resume		= exynos_pinctrl_resume,
++	}, 	{
++		/* pin-controller instance 3 FSYS data */
++		.pin_banks	= exynos7570_pin_banks3,
++		.nr_banks	= ARRAY_SIZE(exynos7570_pin_banks3),
++		.eint_gpio_init = exynos_eint_gpio_init,
++		.suspend	= exynos_pinctrl_suspend,
++		.resume		= exynos_pinctrl_resume,
++	}, 	{
++		/* pin-controller instance 4 MIF data */
++		.pin_banks	= exynos7570_pin_banks4,
++		.nr_banks	= ARRAY_SIZE(exynos7570_pin_banks4),
++		.eint_gpio_init = exynos_eint_gpio_init,
++		.suspend	= exynos_pinctrl_suspend,
++		.resume		= exynos_pinctrl_resume,
++	}, 	{
++		/* pin-controller instance 5 NFC data */
++		.pin_banks	= exynos7570_pin_banks5,
++		.nr_banks	= ARRAY_SIZE(exynos7570_pin_banks5),
++		.eint_gpio_init = exynos_eint_gpio_init,
++		.suspend	= exynos_pinctrl_suspend,
++		.resume		= exynos_pinctrl_resume,
++	}, 	{
++		/* pin-controller instance 6 TOP data */
++		.pin_banks	= exynos7570_pin_banks6,
++		.nr_banks	= ARRAY_SIZE(exynos7570_pin_banks6),
++		.eint_gpio_init = exynos_eint_gpio_init,
++		.suspend	= exynos_pinctrl_suspend,
++		.resume		= exynos_pinctrl_resume,
++	}, 	{
++		/* pin-controller instance 7 TOUCH data */
++		.pin_banks	= exynos7570_pin_banks7,
++		.nr_banks	= ARRAY_SIZE(exynos7570_pin_banks7),
++		.eint_gpio_init = exynos_eint_gpio_init,
++		.suspend	= exynos_pinctrl_suspend,
++		.resume		= exynos_pinctrl_resume,
++	},
++};
++
++const struct samsung_pinctrl_of_match_data exynos7570_of_data __initconst = {
++	.ctrl		= exynos7570_pin_ctrl,
++	.num_ctrl	= ARRAY_SIZE(exynos7570_pin_ctrl),
++};
++
+ /* pin banks of exynos7870 pin-controller 0 (ALIVE) */
+ static const struct samsung_pin_bank_data exynos7870_pin_banks0[] __initconst = {
+ 	EXYNOS7870_PIN_BANK_EINTN(6, 0x000, "etc0"),
+diff --git a/drivers/pinctrl/samsung/pinctrl-samsung.c b/drivers/pinctrl/samsung/pinctrl-samsung.c
+index 1e0c37c32..813d57240 100644
+--- a/drivers/pinctrl/samsung/pinctrl-samsung.c
++++ b/drivers/pinctrl/samsung/pinctrl-samsung.c
+@@ -1483,6 +1483,8 @@ static const struct of_device_id samsung_pinctrl_dt_match[] = {
+ 		.data = &exynos5433_of_data },
+ 	{ .compatible = "samsung,exynos7-pinctrl",
+ 		.data = &exynos7_of_data },
++	{ .compatible = "samsung,exynos7570-pinctrl",
++		.data = &exynos7570_of_data },
+ 	{ .compatible = "samsung,exynos7870-pinctrl",
+ 		.data = &exynos7870_of_data },
+ 	{ .compatible = "samsung,exynos7885-pinctrl",
+diff --git a/drivers/pinctrl/samsung/pinctrl-samsung.h b/drivers/pinctrl/samsung/pinctrl-samsung.h
+index f2cd2737e..ebdfdca1f 100644
+--- a/drivers/pinctrl/samsung/pinctrl-samsung.h
++++ b/drivers/pinctrl/samsung/pinctrl-samsung.h
+@@ -386,6 +386,7 @@ extern const struct samsung_pinctrl_of_match_data exynos5410_of_data;
+ extern const struct samsung_pinctrl_of_match_data exynos5420_of_data;
+ extern const struct samsung_pinctrl_of_match_data exynos5433_of_data;
+ extern const struct samsung_pinctrl_of_match_data exynos7_of_data;
++extern const struct samsung_pinctrl_of_match_data exynos7570_of_data;
+ extern const struct samsung_pinctrl_of_match_data exynos7870_of_data;
+ extern const struct samsung_pinctrl_of_match_data exynos7885_of_data;
+ extern const struct samsung_pinctrl_of_match_data exynos850_of_data;

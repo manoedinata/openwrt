@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Sat, 1 Mar 2025 01:16:51 +0530
+Subject: [PATCH 05/92] soc: samsung: exynos-chipid: add support for exynos7870
+
+Add the product ID of Exynos7870 (S5E7870) to the existing list.
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Link: https://lore.kernel.org/r/20250301-exynos7870-v4-3-2925537f9b2a@disroot.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+(cherry picked from commit 13a24175005fad410464bee482ed58af144ba250):
+---
+ drivers/soc/samsung/exynos-chipid.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/soc/samsung/exynos-chipid.c b/drivers/soc/samsung/exynos-chipid.c
+index 9c4c74ced..5c21fc750 100644
+--- a/drivers/soc/samsung/exynos-chipid.c
++++ b/drivers/soc/samsung/exynos-chipid.c
+@@ -56,6 +56,7 @@ static const struct exynos_soc_id {
+ 	{ "EXYNOS5440", 0xE5440000 },
+ 	{ "EXYNOS5800", 0xE5422000 },
+ 	{ "EXYNOS7420", 0xE7420000 },
++	{ "EXYNOS7870", 0xE7870000 },
+ 	/* Compatible with: samsung,exynos850-chipid */
+ 	{ "EXYNOS7885", 0xE7885000 },
+ 	{ "EXYNOS850", 0xE3830000 },

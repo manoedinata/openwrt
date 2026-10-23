@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Tue, 18 Mar 2025 23:01:09 +0530
+Subject: [PATCH 13/92] dt-bindings: gpu: arm,mali-midgard: add exynos7870-mali
+ compatible
+
+Exynos7870 SoC uses the ARM Mali T830 GPU, document its compatible
+string with the appropriate fallback. The T830 compatible is already
+defined in the panfrost driver, but was commented out as it was unused.
+
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Link: https://lore.kernel.org/r/20250318-exynos7870-gpu-v2-1-58dc2094dc7f@disroot.org
+Signed-off-by: Rob Herring (Arm) <robh@kernel.org>
+(cherry picked from commit d47bdcbc55e7969f0196192c44d0f39ec321d2cc):
+---
+ Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml b/Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml
+index 0801da33a..48daba21a 100644
+--- a/Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml
++++ b/Documentation/devicetree/bindings/gpu/arm,mali-midgard.yaml
+@@ -45,12 +45,15 @@ properties:
+               - samsung,exynos7-mali
+           - const: samsung,exynos5433-mali
+           - const: arm,mali-t760
++      - items:
++          - enum:
++              - samsung,exynos7870-mali
++          - const: arm,mali-t830
+       - items:
+           - enum:
+               - rockchip,rk3399-mali
+           - const: arm,mali-t860
+ 
+-          # "arm,mali-t830"
+           # "arm,mali-t880"
+ 
+   reg:

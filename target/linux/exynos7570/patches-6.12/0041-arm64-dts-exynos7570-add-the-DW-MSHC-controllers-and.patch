@@ -1,0 +1,103 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 07:39:01 +0700
+Subject: [PATCH 41/92] arm64: dts: exynos7570: add the DW-MSHC controllers and
+ enable the eMMC
+
+Add the two DW-MSHC controllers: mmc0 (eMMC, with the SMU) and mmc2 (SD
+card), clocked from CMU_FSYS. They behave like the ones of the Exynos7870,
+so the 7570 compatibles fall back to the 7870 ones (document that in the
+binding). Enable the eMMC on the J4 with the timings of the downstream
+kernel. Pins and supplies are left as the bootloader configured them.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 4327b51e0501728a4bf8ec2dcf10ba7a92967725)
+---
+ .../bindings/mmc/samsung,exynos-dw-mshc.yaml  |  6 ++++
+ .../boot/dts/exynos/exynos7570-j4lte.dts      | 15 +++++++++
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi    | 32 +++++++++++++++++++
+ 3 files changed, 53 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/mmc/samsung,exynos-dw-mshc.yaml b/Documentation/devicetree/bindings/mmc/samsung,exynos-dw-mshc.yaml
+index eb884f82a..e0160415a 100644
+--- a/Documentation/devicetree/bindings/mmc/samsung,exynos-dw-mshc.yaml
++++ b/Documentation/devicetree/bindings/mmc/samsung,exynos-dw-mshc.yaml
+@@ -26,6 +26,12 @@ properties:
+           - samsung,exynos7-dw-mshc-smu
+           - samsung,exynos7870-dw-mshc
+           - samsung,exynos7870-dw-mshc-smu
++      - items:
++          - const: samsung,exynos7570-dw-mshc
++          - const: samsung,exynos7870-dw-mshc
++      - items:
++          - const: samsung,exynos7570-dw-mshc-smu
++          - const: samsung,exynos7870-dw-mshc-smu
+       - items:
+           - enum:
+               - samsung,exynos5433-dw-mshc-smu
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index 4b82d4871..685948a8a 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -98,3 +98,18 @@ wifibt@79000000 {
+ 		};
+ 	};
+ };
++
++&mmc0 {
++	/* Pins and supplies are left as S-BOOT set them up */
++	bus-width = <8>;
++	fifo-depth = <64>;
++	samsung,dw-mshc-ciu-div = <3>;
++	samsung,dw-mshc-sdr-timing = <0 2>;
++	samsung,dw-mshc-ddr-timing = <2 4>;
++	non-removable;
++	mmc-ddr-1_8v;
++	no-sd;
++	no-sdio;
++
++	status = "okay";
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index 73dc4c40e..11db4c07e 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -131,6 +131,38 @@ gic: interrupt-controller@104e1000 {
+ 			#interrupt-cells = <3>;
+ 		};
+ 
++		mmc0: mmc@13540000 {
++			compatible = "samsung,exynos7570-dw-mshc-smu",
++				     "samsung,exynos7870-dw-mshc-smu";
++			reg = <0x13540000 0x2000>;
++			interrupts = <GIC_SPI 245 IRQ_TYPE_LEVEL_HIGH>;
++
++			clock-names = "biu", "ciu";
++			clocks = <&cmu_fsys CLK_GOUT_FSYS_MMC_EMBD_ACLK>,
++				 <&cmu_fsys CLK_GOUT_FSYS_MMC_EMBD_SDCLKIN>;
++
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			status = "disabled";
++		};
++
++		mmc2: mmc@13560000 {
++			compatible = "samsung,exynos7570-dw-mshc",
++				     "samsung,exynos7870-dw-mshc";
++			reg = <0x13560000 0x2000>;
++			interrupts = <GIC_SPI 247 IRQ_TYPE_LEVEL_HIGH>;
++
++			clock-names = "biu", "ciu";
++			clocks = <&cmu_fsys CLK_GOUT_FSYS_MMC_CARD_ACLK>,
++				 <&cmu_fsys CLK_GOUT_FSYS_MMC_CARD_SDCLKIN>;
++
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			status = "disabled";
++		};
++
+ 		cmu_fsys: clock-controller@13730000 {
+ 			compatible = "samsung,exynos7570-cmu-fsys";
+ 			reg = <0x13730000 0x1000>;

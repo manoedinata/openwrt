@@ -1,0 +1,724 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 11:51:15 +0700
+Subject: [PATCH 55/92] power: supply: add S2MPU06 charger and fuel gauge
+ drivers
+
+Both sit on the PMIC's SPEEDY bus and are cells of the PMIC core. The charger
+IC runs the charging cycle on its own: the driver reports its state, exposes
+the limits and keeps its watchdog fed. The fuel gauge only reads the gauge's
+result registers; the battery is described by a simple-battery node.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 8bd1b56e67b586b8e8e7488a6477acc2ca0b2755)
+---
+ .../regulator/samsung,s2mpu06-pmic.yaml       |   5 +
+ .../boot/dts/exynos/exynos7570-j4lte.dts      |  11 +
+ drivers/mfd/s2mpu06.c                         |   9 +-
+ drivers/power/supply/Kconfig                  |   7 +
+ drivers/power/supply/Makefile                 |   1 +
+ drivers/power/supply/s2mpu06_charger.c        | 332 ++++++++++++++++++
+ drivers/power/supply/s2mpu06_fuelgauge.c      | 242 +++++++++++++
+ 7 files changed, 604 insertions(+), 3 deletions(-)
+ create mode 100644 drivers/power/supply/s2mpu06_charger.c
+ create mode 100644 drivers/power/supply/s2mpu06_fuelgauge.c
+
+diff --git a/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml b/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
+index d42ccca84..1d45f29de 100644
+--- a/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
++++ b/Documentation/devicetree/bindings/regulator/samsung,s2mpu06-pmic.yaml
+@@ -25,6 +25,10 @@ properties:
+     maxItems: 1
+     description: Level-low interrupt line shared by all functions of the PMIC.
+ 
++  monitored-battery:
++    $ref: /schemas/types.yaml#/definitions/phandle
++    description: Battery described by a simple-battery node, used by the fuel gauge.
++
+   regulators:
+     type: object
+     description: Regulator nodes named after the rails.
+@@ -54,6 +58,7 @@ examples:
+         reg = <0>;
+         interrupt-parent = <&gpa0>;
+         interrupts = <5 IRQ_TYPE_LEVEL_LOW>;
++        monitored-battery = <&battery>;
+ 
+         regulators {
+             BUCK1 {
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index c3b7c4bbe..d22322c4e 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -111,6 +111,15 @@ wifibt@79000000 {
+ 	};
+ };
+ 
++&{/} {
++	battery: battery {
++		compatible = "simple-battery";
++		device-chemistry = "lithium-ion";
++		voltage-max-design-microvolt = <4350000>;
++		charge-full-design-microamp-hours = <3000000>;
++	};
++};
++
+ &mmc0 {
+ 	/* Pins are left as S-BOOT set them up */
+ 	vmmc-supply = <&ldo14_reg>;
+@@ -154,6 +163,8 @@ pmic@0 {
+ 		pinctrl-names = "default";
+ 		pinctrl-0 = <&pmic_irq>;
+ 
++		monitored-battery = <&battery>;
++
+ 		regulators {
+ 			buck1_reg: BUCK1 {
+ 				regulator-name = "BUCK1";
+diff --git a/drivers/mfd/s2mpu06.c b/drivers/mfd/s2mpu06.c
+index 5d08aefee..8ab6b91a2 100644
+--- a/drivers/mfd/s2mpu06.c
++++ b/drivers/mfd/s2mpu06.c
+@@ -100,6 +100,8 @@ static const struct resource s2mpu06_pwrkey_res[] = {
+ static const struct mfd_cell s2mpu06_cells[] = {
+ 	{ .name = "s2mpu06-regulator" },
+ 	{ .name = "s2mpu06-rtc" },
++	{ .name = "s2mpu06-charger" },
++	{ .name = "s2mpu06-fuelgauge" },
+ 	{
+ 		.name = "s2mpu06-pwrkey",
+ 		.num_resources = ARRAY_SIZE(s2mpu06_pwrkey_res),
+@@ -131,13 +133,14 @@ static int s2mpu06_probe(struct platform_device *pdev)
+ 	if (IS_ERR(s2m->rtc))
+ 		return dev_err_probe(dev, PTR_ERR(s2m->rtc), "cannot get RTC regmap\n");
+ 
+-	/* these only exist to acknowledge interrupts, so failing to get them is harmless */
+ 	s2m->chg = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_CHG);
+ 	if (IS_ERR(s2m->chg))
+-		s2m->chg = NULL;
++		return dev_err_probe(dev, PTR_ERR(s2m->chg), "cannot get charger regmap\n");
+ 	s2m->fg = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_FG);
+ 	if (IS_ERR(s2m->fg))
+-		s2m->fg = NULL;
++		return dev_err_probe(dev, PTR_ERR(s2m->fg), "cannot get fuel gauge regmap\n");
++
++	/* only used to acknowledge interrupts, so failing to get it is harmless */
+ 	s2m->codec = devm_exynos_speedy_regmap(dev, S2MPU06_BLK_CODEC);
+ 	if (IS_ERR(s2m->codec))
+ 		s2m->codec = NULL;
+diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
+index bcfa63fb9..896cc45be 100644
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -683,6 +683,13 @@ config CHARGER_BQ2415X
+ 	  You'll need this driver to charge batteries on e.g. Nokia
+ 	  RX-51/N900.
+ 
++config CHARGER_S2MPU06
++	tristate "Samsung S2MPU06 PMIC charger and fuel gauge"
++	depends on MFD_S2MPU06
++	help
++	  Say Y here to enable support for the charger and the fuel gauge
++	  of the Samsung S2MPU06 PMIC, as found in the Galaxy J4.
++
+ config CHARGER_BQ24190
+ 	tristate "TI BQ24190 battery charger driver"
+ 	depends on I2C
+diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
+index 8dcb41545..80c7d8e1e 100644
+--- a/drivers/power/supply/Makefile
++++ b/drivers/power/supply/Makefile
+@@ -89,6 +89,7 @@ obj-$(CONFIG_CHARGER_QCOM_SMBB)	+= qcom_smbb.o
+ obj-$(CONFIG_BATTERY_PM8916_BMS_VM)	+= pm8916_bms_vm.o
+ obj-$(CONFIG_CHARGER_PM8916_LBC)	+= pm8916_lbc.o
+ obj-$(CONFIG_CHARGER_BQ2415X)	+= bq2415x_charger.o
++obj-$(CONFIG_CHARGER_S2MPU06)	+= s2mpu06_charger.o s2mpu06_fuelgauge.o
+ obj-$(CONFIG_CHARGER_BQ24190)	+= bq24190_charger.o
+ obj-$(CONFIG_CHARGER_BQ24257)	+= bq24257_charger.o
+ obj-$(CONFIG_CHARGER_BQ24735)	+= bq24735-charger.o
+diff --git a/drivers/power/supply/s2mpu06_charger.c b/drivers/power/supply/s2mpu06_charger.c
+new file mode 100644
+index 000000000..487e9e1da
+--- /dev/null
++++ b/drivers/power/supply/s2mpu06_charger.c
+@@ -0,0 +1,332 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Charger of the Samsung S2MPU06 PMIC
++ *
++ * The charger IC runs the charging cycle on its own; this driver reports its
++ * state, exposes the current and voltage limits and keeps its watchdog fed.
++ * Register layout from the downstream s2mpu06_charger driver:
++ * Copyright (C) 2015 Samsung Electronics
++ */
++
++#include <linux/bits.h>
++#include <linux/interrupt.h>
++#include <linux/mfd/samsung/s2mpu06.h>
++#include <linux/mod_devicetable.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/power_supply.h>
++#include <linux/regmap.h>
++#include <linux/workqueue.h>
++
++/* PMIC block */
++#define S2MPU06_PMIC_STATUS1		0x06
++#define S2MPU06_PMIC_STATUS1_ACOK	BIT(2)
++
++/* charger block */
++#define S2MPU06_CHG_STATUS1		0x09
++#define S2MPU06_CHG_STATUS1_CHGVIN	BIT(2)
++#define S2MPU06_CHG_STATUS1_CHARGING	BIT(5)
++#define S2MPU06_CHG_STATUS1_CC_CV	GENMASK(6, 5)
++#define S2MPU06_CHG_STATUS2		0x0a
++#define S2MPU06_CHG_STATUS2_DONE	BIT(5)
++#define S2MPU06_CHG_STATUS2_VINOVP	BIT(6)
++#define S2MPU06_CHG_CTRL1		0x0d	/* input current limit, 10 mA/step */
++#define S2MPU06_CHG_CTRL2		0x0e	/* float voltage */
++#define S2MPU06_CHG_CTRL10		0x16	/* fast charge current */
++#define S2MPU06_CHG_CTRL10_MASK		GENMASK(6, 0)
++#define S2MPU06_CHG_CTRL12		0x18	/* watchdog */
++#define S2MPU06_CHG_CTRL12_WDT_EN	GENMASK(3, 2)
++#define S2MPU06_CHG_CTRL12_WDT_KICK	GENMASK(1, 0)
++
++#define S2MPU06_ICHG_MIN_UA		240000
++#define S2MPU06_ICHG_STEP_UA		20000
++#define S2MPU06_ICHG_BASE_SEL		0x08
++#define S2MPU06_ICHG_MAX_SEL		0x60
++
++#define S2MPU06_IIN_STEP_UA		10000
++#define S2MPU06_IIN_MIN_SEL		0x0a
++#define S2MPU06_IIN_MAX_SEL		0xb4
++
++#define S2MPU06_VFLOAT_BASE_SEL		0x60
++#define S2MPU06_VFLOAT_MAX_SEL		0xb5
++#define S2MPU06_VFLOAT_MIN_UV		3600000
++#define S2MPU06_VFLOAT_STEP_UV		10000
++
++#define S2MPU06_WDT_KICK_PERIOD		msecs_to_jiffies(10000)
++
++struct s2mpu06_charger {
++	struct device *dev;
++	struct s2mpu06 *s2m;
++	struct power_supply *psy;
++	struct delayed_work wdt_work;
++};
++
++static int s2mpu06_charger_online(struct s2mpu06_charger *chg, int *online)
++{
++	unsigned int val;
++	int ret;
++
++	ret = regmap_read(chg->s2m->pmic, S2MPU06_PMIC_STATUS1, &val);
++	if (ret)
++		return ret;
++
++	*online = !!(val & S2MPU06_PMIC_STATUS1_ACOK);
++	return 0;
++}
++
++static int s2mpu06_charger_status(struct s2mpu06_charger *chg, int *status)
++{
++	unsigned int s1, s2;
++	int ret, online;
++
++	ret = s2mpu06_charger_online(chg, &online);
++	if (ret)
++		return ret;
++	ret = regmap_read(chg->s2m->chg, S2MPU06_CHG_STATUS1, &s1);
++	if (ret)
++		return ret;
++	ret = regmap_read(chg->s2m->chg, S2MPU06_CHG_STATUS2, &s2);
++	if (ret)
++		return ret;
++
++	if (!online)
++		*status = POWER_SUPPLY_STATUS_DISCHARGING;
++	else if (s2 & S2MPU06_CHG_STATUS2_DONE)
++		*status = POWER_SUPPLY_STATUS_FULL;
++	else if (s1 & S2MPU06_CHG_STATUS1_CHARGING)
++		*status = POWER_SUPPLY_STATUS_CHARGING;
++	else
++		*status = POWER_SUPPLY_STATUS_NOT_CHARGING;
++
++	return 0;
++}
++
++static int s2mpu06_charger_get_property(struct power_supply *psy,
++					enum power_supply_property psp,
++					union power_supply_propval *val)
++{
++	struct s2mpu06_charger *chg = power_supply_get_drvdata(psy);
++	unsigned int reg;
++	int ret, online;
++
++	switch (psp) {
++	case POWER_SUPPLY_PROP_ONLINE:
++		ret = s2mpu06_charger_online(chg, &online);
++		val->intval = online;
++		return ret;
++	case POWER_SUPPLY_PROP_STATUS:
++		return s2mpu06_charger_status(chg, &val->intval);
++	case POWER_SUPPLY_PROP_CHARGE_TYPE:
++		ret = regmap_read(chg->s2m->chg, S2MPU06_CHG_STATUS1, &reg);
++		if (ret)
++			return ret;
++		reg &= S2MPU06_CHG_STATUS1_CC_CV;
++		if (!(reg & S2MPU06_CHG_STATUS1_CHARGING))
++			val->intval = POWER_SUPPLY_CHARGE_TYPE_NONE;
++		else if (reg == S2MPU06_CHG_STATUS1_CC_CV)
++			val->intval = POWER_SUPPLY_CHARGE_TYPE_FAST;
++		else
++			val->intval = POWER_SUPPLY_CHARGE_TYPE_TRICKLE;
++		return 0;
++	case POWER_SUPPLY_PROP_HEALTH:
++		ret = regmap_read(chg->s2m->chg, S2MPU06_CHG_STATUS2, &reg);
++		if (ret)
++			return ret;
++		val->intval = (reg & S2MPU06_CHG_STATUS2_VINOVP) ?
++			POWER_SUPPLY_HEALTH_OVERVOLTAGE : POWER_SUPPLY_HEALTH_GOOD;
++		return 0;
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
++		ret = regmap_read(chg->s2m->chg, S2MPU06_CHG_CTRL10, &reg);
++		if (ret)
++			return ret;
++		reg = clamp(reg & S2MPU06_CHG_CTRL10_MASK, (unsigned int)S2MPU06_ICHG_BASE_SEL,
++			    (unsigned int)S2MPU06_ICHG_MAX_SEL);
++		val->intval = S2MPU06_ICHG_MIN_UA +
++			      (reg - S2MPU06_ICHG_BASE_SEL) * S2MPU06_ICHG_STEP_UA;
++		return 0;
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
++		val->intval = S2MPU06_ICHG_MIN_UA +
++			      (S2MPU06_ICHG_MAX_SEL - S2MPU06_ICHG_BASE_SEL) * S2MPU06_ICHG_STEP_UA;
++		return 0;
++	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
++		ret = regmap_read(chg->s2m->chg, S2MPU06_CHG_CTRL1, &reg);
++		if (ret)
++			return ret;
++		val->intval = min_t(unsigned int, reg, S2MPU06_IIN_MAX_SEL) * S2MPU06_IIN_STEP_UA;
++		return 0;
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
++		ret = regmap_read(chg->s2m->chg, S2MPU06_CHG_CTRL2, &reg);
++		if (ret)
++			return ret;
++		reg = clamp(reg, (unsigned int)S2MPU06_VFLOAT_BASE_SEL,
++			    (unsigned int)S2MPU06_VFLOAT_MAX_SEL);
++		val->intval = S2MPU06_VFLOAT_MIN_UV +
++			      (reg - S2MPU06_VFLOAT_BASE_SEL) * S2MPU06_VFLOAT_STEP_UV;
++		return 0;
++	default:
++		return -EINVAL;
++	}
++}
++
++static int s2mpu06_charger_set_property(struct power_supply *psy,
++					enum power_supply_property psp,
++					const union power_supply_propval *val)
++{
++	struct s2mpu06_charger *chg = power_supply_get_drvdata(psy);
++	unsigned int sel;
++
++	switch (psp) {
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
++		sel = S2MPU06_ICHG_BASE_SEL +
++		      (clamp(val->intval, S2MPU06_ICHG_MIN_UA,
++			     S2MPU06_ICHG_MIN_UA + (S2MPU06_ICHG_MAX_SEL - S2MPU06_ICHG_BASE_SEL) *
++						   S2MPU06_ICHG_STEP_UA) -
++		       S2MPU06_ICHG_MIN_UA) / S2MPU06_ICHG_STEP_UA;
++		return regmap_update_bits(chg->s2m->chg, S2MPU06_CHG_CTRL10,
++					  S2MPU06_CHG_CTRL10_MASK, sel);
++	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
++		sel = clamp(val->intval / S2MPU06_IIN_STEP_UA, S2MPU06_IIN_MIN_SEL,
++			    S2MPU06_IIN_MAX_SEL);
++		return regmap_write(chg->s2m->chg, S2MPU06_CHG_CTRL1, sel);
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
++		sel = S2MPU06_VFLOAT_BASE_SEL +
++		      (clamp(val->intval, S2MPU06_VFLOAT_MIN_UV,
++			     S2MPU06_VFLOAT_MIN_UV + (S2MPU06_VFLOAT_MAX_SEL - S2MPU06_VFLOAT_BASE_SEL) *
++						     S2MPU06_VFLOAT_STEP_UV) -
++		       S2MPU06_VFLOAT_MIN_UV) / S2MPU06_VFLOAT_STEP_UV;
++		return regmap_write(chg->s2m->chg, S2MPU06_CHG_CTRL2, sel);
++	default:
++		return -EINVAL;
++	}
++}
++
++static int s2mpu06_charger_property_is_writeable(struct power_supply *psy,
++						 enum power_supply_property psp)
++{
++	switch (psp) {
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT:
++	case POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT:
++	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE:
++		return 1;
++	default:
++		return 0;
++	}
++}
++
++static const enum power_supply_property s2mpu06_charger_props[] = {
++	POWER_SUPPLY_PROP_ONLINE,
++	POWER_SUPPLY_PROP_STATUS,
++	POWER_SUPPLY_PROP_CHARGE_TYPE,
++	POWER_SUPPLY_PROP_HEALTH,
++	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT,
++	POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX,
++	POWER_SUPPLY_PROP_INPUT_CURRENT_LIMIT,
++	POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE,
++};
++
++static char *s2mpu06_charger_supplicants[] = { "s2mpu06-fuelgauge" };
++
++static const struct power_supply_desc s2mpu06_charger_desc = {
++	.name = "s2mpu06-charger",
++	.type = POWER_SUPPLY_TYPE_MAINS,
++	.properties = s2mpu06_charger_props,
++	.num_properties = ARRAY_SIZE(s2mpu06_charger_props),
++	.get_property = s2mpu06_charger_get_property,
++	.set_property = s2mpu06_charger_set_property,
++	.property_is_writeable = s2mpu06_charger_property_is_writeable,
++};
++
++/* the charger IC drops back to its defaults when its watchdog is not cleared */
++static void s2mpu06_charger_wdt_work(struct work_struct *work)
++{
++	struct s2mpu06_charger *chg = container_of(work, struct s2mpu06_charger, wdt_work.work);
++
++	regmap_update_bits(chg->s2m->chg, S2MPU06_CHG_CTRL12, S2MPU06_CHG_CTRL12_WDT_KICK, 0x1);
++	regmap_update_bits(chg->s2m->chg, S2MPU06_CHG_CTRL12, S2MPU06_CHG_CTRL12_WDT_KICK, 0x0);
++
++	schedule_delayed_work(&chg->wdt_work, S2MPU06_WDT_KICK_PERIOD);
++}
++
++static irqreturn_t s2mpu06_charger_acok_irq(int irq, void *data)
++{
++	struct s2mpu06_charger *chg = data;
++
++	power_supply_changed(chg->psy);
++
++	return IRQ_HANDLED;
++}
++
++static void s2mpu06_charger_cancel_wdt(void *data)
++{
++	cancel_delayed_work_sync(data);
++}
++
++static int s2mpu06_charger_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct power_supply_config cfg = { };
++	struct s2mpu06_charger *chg;
++	unsigned int ctrl12;
++	int i, irq, ret;
++
++	chg = devm_kzalloc(dev, sizeof(*chg), GFP_KERNEL);
++	if (!chg)
++		return -ENOMEM;
++
++	chg->dev = dev;
++	chg->s2m = dev_get_drvdata(dev->parent);
++	INIT_DELAYED_WORK(&chg->wdt_work, s2mpu06_charger_wdt_work);
++
++	cfg.drv_data = chg;
++	cfg.supplied_to = s2mpu06_charger_supplicants;
++	cfg.num_supplicants = ARRAY_SIZE(s2mpu06_charger_supplicants);
++
++	chg->psy = devm_power_supply_register(dev, &s2mpu06_charger_desc, &cfg);
++	if (IS_ERR(chg->psy))
++		return dev_err_probe(dev, PTR_ERR(chg->psy), "cannot register the charger\n");
++
++	for (i = S2MPU06_IRQ_ACOKBF; i <= S2MPU06_IRQ_ACOKBR; i++) {
++		irq = regmap_irq_get_virq(chg->s2m->irq_data, i);
++		if (irq < 0)
++			return irq;
++
++		ret = devm_request_threaded_irq(dev, irq, NULL, s2mpu06_charger_acok_irq,
++						IRQF_ONESHOT, "s2mpu06-acok", chg);
++		if (ret)
++			return dev_err_probe(dev, ret, "cannot request the AC OK irq\n");
++	}
++
++	/* only feed the watchdog if the bootloader or a previous kernel armed it */
++	ret = regmap_read(chg->s2m->chg, S2MPU06_CHG_CTRL12, &ctrl12);
++	if (ret)
++		return dev_err_probe(dev, ret, "cannot read the charger\n");
++	dev_info(dev, "charger CTRL12 %#x (watchdog %s)\n", ctrl12,
++		 (ctrl12 & S2MPU06_CHG_CTRL12_WDT_EN) ? "armed" : "off");
++
++	if (ctrl12 & S2MPU06_CHG_CTRL12_WDT_EN) {
++		ret = devm_add_action_or_reset(dev, s2mpu06_charger_cancel_wdt, &chg->wdt_work);
++		if (ret)
++			return ret;
++		schedule_delayed_work(&chg->wdt_work, 0);
++	}
++
++	return 0;
++}
++
++static const struct platform_device_id s2mpu06_charger_id[] = {
++	{ "s2mpu06-charger" },
++	{ }
++};
++MODULE_DEVICE_TABLE(platform, s2mpu06_charger_id);
++
++static struct platform_driver s2mpu06_charger_driver = {
++	.probe = s2mpu06_charger_probe,
++	.driver = {
++		.name = "s2mpu06-charger",
++	},
++	.id_table = s2mpu06_charger_id,
++};
++module_platform_driver(s2mpu06_charger_driver);
++
++MODULE_DESCRIPTION("Samsung S2MPU06 charger driver");
++MODULE_LICENSE("GPL");
+diff --git a/drivers/power/supply/s2mpu06_fuelgauge.c b/drivers/power/supply/s2mpu06_fuelgauge.c
+new file mode 100644
+index 000000000..612d1f21d
+--- /dev/null
++++ b/drivers/power/supply/s2mpu06_fuelgauge.c
+@@ -0,0 +1,242 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Fuel gauge of the Samsung S2MPU06 PMIC
++ *
++ * The gauge measures and estimates on its own; this driver only reads its
++ * result registers. Register layout from the downstream s2mpu06_fuelgauge
++ * driver: Copyright (C) 2015 Samsung Electronics
++ */
++
++#include <linux/bits.h>
++#include <linux/device.h>
++#include <linux/property.h>
++#include <linux/mfd/samsung/s2mpu06.h>
++#include <linux/module.h>
++#include <linux/platform_device.h>
++#include <linux/power_supply.h>
++#include <linux/regmap.h>
++
++#define S2MPU06_FG_RVBAT		0x04
++#define S2MPU06_FG_ROCV			0x06
++#define S2MPU06_FG_RCUR			0x08
++#define S2MPU06_FG_RSOC			0x0c
++
++#define S2MPU06_FG_NEG			BIT(15)
++#define S2MPU06_FG_RETRIES		10
++
++struct s2mpu06_fuelgauge {
++	struct device *dev;
++	struct s2mpu06 *s2m;
++	struct power_supply *psy;
++	struct power_supply_battery_info *info;
++};
++
++/*
++ * The 16-bit results are read a byte at a time, as the vendor driver does, and
++ * the gauge may update them in between. A torn read shows as the high byte
++ * changing across the low byte read, so retry until it does not.
++ */
++static int s2mpu06_fg_read16(struct s2mpu06_fuelgauge *fg, unsigned int reg, u16 *val)
++{
++	unsigned int lo, hi, hi2;
++	int i, ret;
++
++	for (i = 0; i < S2MPU06_FG_RETRIES; i++) {
++		ret = regmap_read(fg->s2m->fg, reg + 1, &hi);
++		if (ret)
++			return ret;
++		ret = regmap_read(fg->s2m->fg, reg, &lo);
++		if (ret)
++			return ret;
++		ret = regmap_read(fg->s2m->fg, reg + 1, &hi2);
++		if (ret)
++			return ret;
++
++		if (hi == hi2) {
++			*val = (hi << 8) | lo;
++			return 0;
++		}
++	}
++
++	return -EAGAIN;
++}
++
++/* 13 fractional bits of volts */
++static int s2mpu06_fg_read_uv(struct s2mpu06_fuelgauge *fg, unsigned int reg, int *uv)
++{
++	u16 raw;
++	int ret;
++
++	ret = s2mpu06_fg_read16(fg, reg, &raw);
++	if (ret)
++		return ret;
++
++	*uv = ((u32)raw * 1000 >> 13) * 1000;
++	return 0;
++}
++
++/* signed 4.12 fixed point of a percent/100 in the gauge; returns 1/100 %, may be < 0 */
++static int s2mpu06_fg_read_soc(struct s2mpu06_fuelgauge *fg, int *soc)
++{
++	u16 a;
++	int ret;
++
++	ret = s2mpu06_fg_read16(fg, S2MPU06_FG_RSOC, &a);
++	if (ret)
++		return ret;
++
++	if (a & S2MPU06_FG_NEG)
++		*soc = -(int)(((u16)~a + 1) * 10000 >> 12);
++	else
++		*soc = (a & 0x7fff) * 10000 >> 12;
++
++	return 0;
++}
++
++static int s2mpu06_fg_get_status(struct s2mpu06_fuelgauge *fg)
++{
++	struct power_supply *chg = power_supply_get_by_name("s2mpu06-charger");
++	union power_supply_propval val;
++	int ret;
++
++	if (!chg)
++		return POWER_SUPPLY_STATUS_UNKNOWN;
++
++	ret = power_supply_get_property(chg, POWER_SUPPLY_PROP_STATUS, &val);
++	power_supply_put(chg);
++
++	return ret ? POWER_SUPPLY_STATUS_UNKNOWN : val.intval;
++}
++
++static int s2mpu06_fg_get_property(struct power_supply *psy, enum power_supply_property psp,
++				   union power_supply_propval *val)
++{
++	struct s2mpu06_fuelgauge *fg = power_supply_get_drvdata(psy);
++	int ret, soc;
++	u16 raw;
++
++	switch (psp) {
++	case POWER_SUPPLY_PROP_STATUS:
++		val->intval = s2mpu06_fg_get_status(fg);
++		return 0;
++	case POWER_SUPPLY_PROP_PRESENT:
++		val->intval = 1;
++		return 0;
++	case POWER_SUPPLY_PROP_HEALTH:
++		val->intval = POWER_SUPPLY_HEALTH_GOOD;
++		return 0;
++	case POWER_SUPPLY_PROP_TECHNOLOGY:
++		val->intval = POWER_SUPPLY_TECHNOLOGY_LION;
++		return 0;
++	case POWER_SUPPLY_PROP_VOLTAGE_NOW:
++		return s2mpu06_fg_read_uv(fg, S2MPU06_FG_RVBAT, &val->intval);
++	case POWER_SUPPLY_PROP_VOLTAGE_OCV:
++		return s2mpu06_fg_read_uv(fg, S2MPU06_FG_ROCV, &val->intval);
++	case POWER_SUPPLY_PROP_CURRENT_NOW:
++		ret = s2mpu06_fg_read16(fg, S2MPU06_FG_RCUR, &raw);
++		if (ret)
++			return ret;
++		/* 4096 counts per ampere; positive when charging */
++		if (raw & S2MPU06_FG_NEG)
++			val->intval = ((u16)~raw + 1) * 1000 >> 12;
++		else
++			val->intval = -(int)((raw & 0x7fff) * 1000 >> 12);
++		val->intval *= 1000;
++		return 0;
++	case POWER_SUPPLY_PROP_CAPACITY:
++		ret = s2mpu06_fg_read_soc(fg, &soc);
++		if (ret)
++			return ret;
++		val->intval = clamp(soc / 100, 0, 100);
++		return 0;
++	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
++		if (!fg->info || fg->info->charge_full_design_uah < 0)
++			return -ENODATA;
++		val->intval = fg->info->charge_full_design_uah;
++		return 0;
++	case POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN:
++		if (!fg->info || fg->info->voltage_max_design_uv < 0)
++			return -ENODATA;
++		val->intval = fg->info->voltage_max_design_uv;
++		return 0;
++	default:
++		return -EINVAL;
++	}
++}
++
++static const enum power_supply_property s2mpu06_fg_props[] = {
++	POWER_SUPPLY_PROP_STATUS,
++	POWER_SUPPLY_PROP_PRESENT,
++	POWER_SUPPLY_PROP_HEALTH,
++	POWER_SUPPLY_PROP_TECHNOLOGY,
++	POWER_SUPPLY_PROP_VOLTAGE_NOW,
++	POWER_SUPPLY_PROP_VOLTAGE_OCV,
++	POWER_SUPPLY_PROP_CURRENT_NOW,
++	POWER_SUPPLY_PROP_CAPACITY,
++	POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN,
++	POWER_SUPPLY_PROP_VOLTAGE_MAX_DESIGN,
++};
++
++static const struct power_supply_desc s2mpu06_fg_desc = {
++	.name = "s2mpu06-fuelgauge",
++	.type = POWER_SUPPLY_TYPE_BATTERY,
++	.properties = s2mpu06_fg_props,
++	.num_properties = ARRAY_SIZE(s2mpu06_fg_props),
++	.get_property = s2mpu06_fg_get_property,
++};
++
++static void s2mpu06_fg_put_info(void *data)
++{
++	struct s2mpu06_fuelgauge *fg = data;
++
++	if (fg->info)
++		power_supply_put_battery_info(fg->psy, fg->info);
++}
++
++static int s2mpu06_fg_probe(struct platform_device *pdev)
++{
++	struct device *dev = &pdev->dev;
++	struct power_supply_config cfg = { };
++	struct s2mpu06_fuelgauge *fg;
++
++	fg = devm_kzalloc(dev, sizeof(*fg), GFP_KERNEL);
++	if (!fg)
++		return -ENOMEM;
++
++	fg->dev = dev;
++	fg->s2m = dev_get_drvdata(dev->parent);
++
++	/* the battery description hangs off the PMIC's node */
++	device_set_of_node_from_dev(dev, dev->parent);
++	cfg.drv_data = fg;
++	cfg.fwnode = dev_fwnode(dev);
++
++	fg->psy = devm_power_supply_register(dev, &s2mpu06_fg_desc, &cfg);
++	if (IS_ERR(fg->psy))
++		return dev_err_probe(dev, PTR_ERR(fg->psy), "cannot register the fuel gauge\n");
++
++	if (power_supply_get_battery_info(fg->psy, &fg->info))
++		fg->info = NULL;
++	else
++		devm_add_action_or_reset(dev, s2mpu06_fg_put_info, fg);
++
++	return 0;
++}
++
++static const struct platform_device_id s2mpu06_fg_id[] = {
++	{ "s2mpu06-fuelgauge" },
++	{ }
++};
++MODULE_DEVICE_TABLE(platform, s2mpu06_fg_id);
++
++static struct platform_driver s2mpu06_fg_driver = {
++	.probe = s2mpu06_fg_probe,
++	.driver = {
++		.name = "s2mpu06-fuelgauge",
++	},
++	.id_table = s2mpu06_fg_id,
++};
++module_platform_driver(s2mpu06_fg_driver);
++
++MODULE_DESCRIPTION("Samsung S2MPU06 fuel gauge driver");
++MODULE_LICENSE("GPL");

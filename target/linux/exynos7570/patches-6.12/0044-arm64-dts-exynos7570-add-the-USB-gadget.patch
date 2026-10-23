@@ -1,0 +1,114 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 08:02:32 +0700
+Subject: [PATCH 44/92] arm64: dts: exynos7570: add the USB gadget
+
+Add the USB DRD PHY and the DWC3 controller (high-speed only) and enable them
+in peripheral mode on the J4. The PHY gets the 20 MHz core clock and the
+user mux selects the PHY's UTMI clock. The PHY supply is left on by the
+bootloader, so describe it as an always-on fixed regulator until there is a
+PMIC driver. CMU_FSYS now covers the USB PLL control register.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit ff83bdebfa286323fd24943b95551946dc33ca48)
+---
+ .../boot/dts/exynos/exynos7570-j4lte.dts      | 22 +++++++++
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi    | 46 ++++++++++++++++++-
+ 2 files changed, 67 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index 685948a8a..e65c6f7ee 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -31,6 +31,18 @@ framebuffer0: framebuffer@67000000 {
+ 		};
+ 	};
+ 
++	/*
++	 * Supply of the USB PHY. It comes from the PMIC and is left on by the
++	 * bootloader; there is no PMIC driver yet, so describe it as always on.
++	 */
++	vdd_usb33: regulator-usb33 {
++		compatible = "regulator-fixed";
++		regulator-name = "vdd_usb33";
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		regulator-always-on;
++	};
++
+ 	memory@40000000 {
+ 		device_type = "memory";
+ 		reg = <0x0 0x40000000 0x3e800000>,
+@@ -113,3 +125,13 @@ &mmc0 {
+ 
+ 	status = "okay";
+ };
++
++&usbdrd {
++	vdd33-supply = <&vdd_usb33>;
++
++	status = "okay";
++};
++
++&usbdrd_dwc3 {
++	dr_mode = "peripheral";
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index 11db4c07e..101bfeb59 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -163,9 +163,53 @@ mmc2: mmc@13560000 {
+ 			status = "disabled";
+ 		};
+ 
++		usbdrd_phy: phy@135c0000 {
++			compatible = "samsung,exynos7570-usbdrd-phy",
++				     "samsung,exynos7870-usbdrd-phy";
++			reg = <0x135c0000 0x100>;
++			#phy-cells = <1>;
++
++			clock-names = "phy", "ref";
++			clocks = <&cmu_fsys CLK_GOUT_FSYS_USB20DRD_PHYCLOCK>,
++				 <&cmu_fsys CLK_GOUT_FSYS_USB20DRD_CLKCORE>;
++
++			/* the controller needs the PHY's 60 MHz UTMI clock */
++			assigned-clocks = <&cmu_fsys CLK_MOUT_FSYS_USB20DRD_PHYCLOCK_USER>;
++			assigned-clock-parents = <&cmu_fsys CLK_FRAT_FSYS_USB20DRD_PHYCLOCK>;
++
++			samsung,pmu-syscon = <&pmu_system_controller>;
++		};
++
++		usbdrd: usb@13600000 {
++			compatible = "samsung,exynos7570-dwusb3",
++				     "samsung,exynos7870-dwusb3";
++			ranges = <0x0 0x13600000 0x10000>;
++			#address-cells = <1>;
++			#size-cells = <1>;
++
++			clock-names = "bus_early", "ref", "ctrl";
++			clocks = <&cmu_fsys CLK_GOUT_FSYS_USB20DRD_ACLK_HSDRD>,
++				 <&cmu_fsys CLK_GOUT_FSYS_USB20DRD_REF_CLK>,
++				 <&cmu_fsys CLK_GOUT_FSYS_USB20DRD_HCLK_CTRL>;
++
++			status = "disabled";
++
++			usbdrd_dwc3: usb@0 {
++				compatible = "snps,dwc3";
++				reg = <0x0 0x10000>;
++				interrupts = <GIC_SPI 230 IRQ_TYPE_LEVEL_HIGH>;
++
++				phy-names = "usb2-phy";
++				phys = <&usbdrd_phy 0>;
++
++				maximum-speed = "high-speed";
++				snps,usb2-gadget-lpm-disable;
++			};
++		};
++
+ 		cmu_fsys: clock-controller@13730000 {
+ 			compatible = "samsung,exynos7570-cmu-fsys";
+-			reg = <0x13730000 0x1000>;
++			reg = <0x13730000 0x2000>;
+ 			#clock-cells = <1>;
+ 
+ 			clock-names = "oscclk";

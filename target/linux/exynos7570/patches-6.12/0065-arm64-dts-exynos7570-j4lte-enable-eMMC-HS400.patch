@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 14:13:46 +0700
+Subject: [PATCH 65/92] arm64: dts: exynos7570: j4lte: enable eMMC HS400
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 9f4f627b1f73e9e9677b833ec619fad2ac74aa18)
+---
+ arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index 4935bb027..4dc50f0ac 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -130,10 +130,16 @@ &mmc0 {
+ 	samsung,dw-mshc-ciu-div = <3>;
+ 	samsung,dw-mshc-sdr-timing = <0 2>;
+ 	samsung,dw-mshc-ddr-timing = <2 4>;
++	samsung,hs400-ulp-mode;
++	samsung,dw-mshc-hs400-timing = <0 3>;
++	samsung,dw-mshc-txdt-crc-timer-fastlimit = <0x34>;
++	samsung,dw-mshc-txdt-crc-timer-initval = <0x38>;
++	samsung,read-strobe-delay = <0x60>;
+ 	non-removable;
+ 	cap-mmc-highspeed;
+ 	mmc-ddr-1_8v;
+ 	mmc-hs200-1_8v;
++	mmc-hs400-1_8v;
+ 	no-sd;
+ 	no-sdio;
+ 

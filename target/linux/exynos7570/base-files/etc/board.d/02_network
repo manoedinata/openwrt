@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+. /lib/functions/uci-defaults.sh
+
+board_config_update
+
+case "$(board_name)" in
+samsung,j4lte)
+	# the only link is the USB RNDIS gadget the boot initramfs sets up;
+	# 172.16.42.1 is the address the PC side has always used
+	ucidef_set_interface_lan "rndis0"
+	ucidef_set_interface "lan" ipaddr "172.16.42.1" netmask "255.255.255.0"
+	;;
+esac
+
+board_config_flush
+
+exit 0

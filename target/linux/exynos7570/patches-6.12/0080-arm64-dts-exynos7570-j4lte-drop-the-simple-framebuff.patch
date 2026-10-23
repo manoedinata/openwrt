@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 21:16:04 +0700
+Subject: [PATCH 80/92] arm64: dts: exynos7570: j4lte: drop the
+ simple-framebuffer
+
+DECON takes over the display the bootloader left running, so the
+simple-framebuffer only made simpledrm card0/fb0 and forced fbcon=map:1
+to put the console on the real display. Without it DECON is card0/fb0.
+The bootloader's framebuffer stays reserved: DECON scans it out until
+the first plane update.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 3544387e4077d2530a29ad628dc808a2aa04cc62)
+---
+ arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts | 16 +---------------
+ 1 file changed, 1 insertion(+), 15 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index ba4be5b1b..8bbe3f871 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -15,21 +15,7 @@ / {
+ 	chassis-type = "handset";
+ 
+ 	chosen {
+-		#address-cells = <2>;
+-		#size-cells = <1>;
+-		ranges;
+-
+-		bootargs = "console=tty0 fbcon=map:1 ignore_loglevel clk_ignore_unused regulator_ignore_unused root=/dev/mmcblk0p25 rootfstype=ext4";
+-
+-		/* Set up by the bootloader (uniLoader), scanned out by DECON */
+-		framebuffer0: framebuffer@67000000 {
+-			compatible = "simple-framebuffer";
+-			reg = <0x0 0x67000000 (720 * 1280 * 4)>;
+-			width = <720>;
+-			height = <1280>;
+-			stride = <(720 * 4)>;
+-			format = "a8r8g8b8";
+-		};
++		bootargs = "console=tty0 ignore_loglevel clk_ignore_unused regulator_ignore_unused root=/dev/mmcblk0p25 rootfstype=ext4";
+ 	};
+ 
+ 	/*

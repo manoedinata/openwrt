@@ -1,0 +1,433 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 13:01:29 +0700
+Subject: [PATCH 61/92] power: supply: s2mpu06: count the charge cycles in the
+ kernel
+
+The fuel gauge adds up the drops of the state of charge (a hundred percent
+is one cycle, jitter below half a percent is ignored) and keeps the result in
+battery-backed NVMEM, which the RTC provides from its unused second alarm.
+The cycle count is now read-only and selects the ageing step on its own.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 4d0906027380566463561e1821a1e4d753da95df)
+---
+ drivers/power/supply/Kconfig             |   2 +
+ drivers/power/supply/s2mpu06_fuelgauge.c | 145 ++++++++++++++++++++---
+ drivers/rtc/Kconfig                      |   4 +-
+ drivers/rtc/rtc-s2mpu06.c                | 110 ++++++++++++++++-
+ 4 files changed, 244 insertions(+), 17 deletions(-)
+
+diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
+index 896cc45be..d9ea9b1d9 100644
+--- a/drivers/power/supply/Kconfig
++++ b/drivers/power/supply/Kconfig
+@@ -686,6 +686,8 @@ config CHARGER_BQ2415X
+ config CHARGER_S2MPU06
+ 	tristate "Samsung S2MPU06 PMIC charger and fuel gauge"
+ 	depends on MFD_S2MPU06
++	select CRC8
++	select NVMEM
+ 	help
+ 	  Say Y here to enable support for the charger and the fuel gauge
+ 	  of the Samsung S2MPU06 PMIC, as found in the Galaxy J4.
+diff --git a/drivers/power/supply/s2mpu06_fuelgauge.c b/drivers/power/supply/s2mpu06_fuelgauge.c
+index 14b0bb246..a40b1097a 100644
+--- a/drivers/power/supply/s2mpu06_fuelgauge.c
++++ b/drivers/power/supply/s2mpu06_fuelgauge.c
+@@ -12,6 +12,7 @@
+  */
+ 
+ #include <linux/bits.h>
++#include <linux/crc8.h>
+ #include <linux/delay.h>
+ #include <linux/device.h>
+ #include <linux/iio/consumer.h>
+@@ -19,6 +20,7 @@
+ #include <linux/mfd/samsung/s2mpu06.h>
+ #include <linux/module.h>
+ #include <linux/mutex.h>
++#include <linux/nvmem-consumer.h>
+ #include <linux/of.h>
+ #include <linux/platform_device.h>
+ #include <linux/power_supply.h>
+@@ -47,6 +49,17 @@
+ #define S2MPU06_FG_CELL_CHAR0		0x34	/* 164 bytes */
+ #define S2MPU06_FG_CELL_CHAR0_LEN	164
+ 
++/*
++ * The charge cycle counter lives in 5 bytes of battery-backed NVMEM (the RTC's
++ * spare alarm registers): 24 bits of centicycles, a magic byte and a CRC-8.
++ * One cycle is a drop of the state of charge by 100 %, however it is spread.
++ */
++#define S2MPU06_FG_CYCLE_BYTES		5
++#define S2MPU06_FG_CYCLE_MAGIC		0xc7
++#define S2MPU06_FG_CYCLE_MAX		0xffffff
++#define S2MPU06_FG_CYCLE_DEADBAND	50	/* 0.5 %, so that jitter does not count */
++#define S2MPU06_FG_CRC8_POLY		0x07
++
+ #define S2MPU06_FG_NEG			BIT(15)
+ #define S2MPU06_FG_RETRIES		10
+ #define S2MPU06_FG_POLL_PERIOD		msecs_to_jiffies(10000)
+@@ -106,8 +119,13 @@ struct s2mpu06_fuelgauge {
+ 	u32 *age_raw100_mv;
+ 	u8 *cell_char0;
+ 	u8 *cell_char1;
+-	int cycle_count;	/* -1 until userspace tells */
++	struct nvmem_device *nvmem;
++	u32 centicycles;
++	u32 cycle_acc;		/* SoC drop not yet worth a centicycle, in 0.01 % */
++	int cycle_ref;		/* SoC the next drop is measured from, in 0.01 % */
++	int cycle_count;	/* whole cycles, -1 when the counter is not available */
+ 	int want_step;
++	bool step_applied;	/* the step's float voltage has reached the charger */
+ 	int data_ver;
+ };
+ 
+@@ -244,6 +262,93 @@ static void s2mpu06_fg_update_temp(struct s2mpu06_fuelgauge *fg)
+ 		fg->temp_bucket = bucket;
+ }
+ 
++/* ------------------------------------------------------------ cycle count */
++
++static void s2mpu06_fg_select_step(struct s2mpu06_fuelgauge *fg);
++
++DECLARE_CRC8_TABLE(s2mpu06_fg_crc8_table);
++
++static void s2mpu06_fg_cycle_encode(u32 centicycles, u8 *buf)
++{
++	buf[0] = centicycles;
++	buf[1] = centicycles >> 8;
++	buf[2] = centicycles >> 16;
++	buf[3] = S2MPU06_FG_CYCLE_MAGIC;
++	buf[4] = crc8(s2mpu06_fg_crc8_table, buf, 4, CRC8_INIT_VALUE);
++}
++
++static bool s2mpu06_fg_cycle_decode(const u8 *buf, u32 *centicycles)
++{
++	if (buf[3] != S2MPU06_FG_CYCLE_MAGIC ||
++	    buf[4] != crc8(s2mpu06_fg_crc8_table, buf, 4, CRC8_INIT_VALUE))
++		return false;
++
++	*centicycles = buf[0] | buf[1] << 8 | buf[2] << 16;
++	return true;
++}
++
++static int s2mpu06_fg_cycle_save(struct s2mpu06_fuelgauge *fg)
++{
++	u8 buf[S2MPU06_FG_CYCLE_BYTES];
++
++	s2mpu06_fg_cycle_encode(fg->centicycles, buf);
++	return nvmem_device_write(fg->nvmem, 0, sizeof(buf), buf) == sizeof(buf) ? 0 : -EIO;
++}
++
++static void s2mpu06_fg_cycle_load(struct s2mpu06_fuelgauge *fg)
++{
++	u8 buf[S2MPU06_FG_CYCLE_BYTES];
++
++	if (nvmem_device_read(fg->nvmem, 0, sizeof(buf), buf) != sizeof(buf)) {
++		fg->nvmem = NULL;
++		return;
++	}
++
++	if (!s2mpu06_fg_cycle_decode(buf, &fg->centicycles)) {
++		/* never written, or the backup power was lost: start counting from scratch */
++		dev_info(fg->dev, "no valid cycle count stored, starting at 0\n");
++		fg->centicycles = 0;
++		if (s2mpu06_fg_cycle_save(fg))
++			fg->nvmem = NULL;
++	}
++	fg->cycle_count = fg->centicycles / 100;
++}
++
++/* only drops of the state of charge count, and only once they are bigger than jitter */
++static void s2mpu06_fg_count_cycles(struct s2mpu06_fuelgauge *fg, int soc)
++{
++	u32 centi;
++
++	if (!fg->nvmem)
++		return;
++
++	if (soc >= fg->cycle_ref) {
++		fg->cycle_ref = soc;
++		return;
++	}
++	if (fg->cycle_ref - soc < S2MPU06_FG_CYCLE_DEADBAND)
++		return;
++
++	fg->cycle_acc += fg->cycle_ref - soc;
++	fg->cycle_ref = soc;
++
++	centi = fg->cycle_acc / 100;	/* 100 = one centicycle in 0.01 % */
++	if (!centi)
++		return;
++	fg->cycle_acc -= centi * 100;
++	fg->centicycles = min(fg->centicycles + centi, (u32)S2MPU06_FG_CYCLE_MAX);
++
++	if (s2mpu06_fg_cycle_save(fg)) {
++		dev_warn(fg->dev, "cannot store the cycle count\n");
++		return;
++	}
++
++	if (fg->centicycles / 100 != fg->cycle_count) {
++		fg->cycle_count = fg->centicycles / 100;
++		s2mpu06_fg_select_step(fg);
++	}
++}
++
+ /* -------------------------------------------------------- capacity policy */
+ 
+ static struct power_supply *s2mpu06_fg_charger(void)
+@@ -289,6 +394,7 @@ static void s2mpu06_fg_update_capacity(struct s2mpu06_fuelgauge *fg)
+ 
+ 	if (s2mpu06_fg_read_rawsoc(fg, &raw))
+ 		return;
++	s2mpu06_fg_count_cycles(fg, raw);
+ 	raw = min(raw / 10, S2MPU06_FG_CAPACITY_FULL);
+ 
+ 	scaled = raw * S2MPU06_FG_CAPACITY_FULL / fg->capacity_max;
+@@ -514,17 +620,20 @@ static void s2mpu06_fg_select_step(struct s2mpu06_fuelgauge *fg)
+ 		if (fg->age_cycle[step] <= fg->cycle_count)
+ 			break;
+ 
+-	if (step == fg->want_step)
++	if (step == fg->want_step && fg->step_applied)
+ 		return;
+ 
++	if (step != fg->want_step)
++		dev_info(fg->dev, "ageing step %d for %d cycles, float voltage %u uV\n", step,
++			 fg->cycle_count, fg->age_float_uv[step]);
+ 	fg->want_step = step;
+-	dev_info(fg->dev, "ageing step %d for %d cycles, float voltage %u uV\n", step,
+-		 fg->cycle_count, fg->age_float_uv[step]);
+ 
++	/* the charger may not be there yet; the poll tries again */
+ 	chg = s2mpu06_fg_charger();
+ 	if (chg) {
+ 		val.intval = fg->age_float_uv[step];
+-		power_supply_set_property(chg, POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE, &val);
++		fg->step_applied = !power_supply_set_property(chg,
++						POWER_SUPPLY_PROP_CONSTANT_CHARGE_VOLTAGE, &val);
+ 		power_supply_put(chg);
+ 	}
+ }
+@@ -561,6 +670,7 @@ static void s2mpu06_fg_work(struct work_struct *work)
+ 		s2mpu06_fg_aging_check(fg);
+ 	}
+ 	fg->charger_status = status;
++	s2mpu06_fg_select_step(fg);
+ 
+ 	if (!s2mpu06_fg_read_current_ma(fg, &ma)) {
+ 		fg->cur_hist[fg->cur_idx] = ma;
+@@ -737,15 +847,6 @@ static int s2mpu06_fg_set_property(struct power_supply *psy, enum power_supply_p
+ 		fg->fuel_alert_soc = val->intval;
+ 		ret = s2mpu06_fg_program_alert(fg);
+ 		break;
+-	case POWER_SUPPLY_PROP_CYCLE_COUNT:
+-		if (val->intval < 0) {
+-			ret = -EINVAL;
+-			break;
+-		}
+-		/* the cycle count has to be kept by userspace and written at every boot */
+-		fg->cycle_count = val->intval;
+-		s2mpu06_fg_select_step(fg);
+-		break;
+ 	default:
+ 		ret = -EINVAL;
+ 	}
+@@ -756,7 +857,7 @@ static int s2mpu06_fg_set_property(struct power_supply *psy, enum power_supply_p
+ 
+ static int s2mpu06_fg_property_is_writeable(struct power_supply *psy, enum power_supply_property psp)
+ {
+-	return psp == POWER_SUPPLY_PROP_CAPACITY_ALERT_MIN || psp == POWER_SUPPLY_PROP_CYCLE_COUNT;
++	return psp == POWER_SUPPLY_PROP_CAPACITY_ALERT_MIN;
+ }
+ 
+ static const enum power_supply_property s2mpu06_fg_props[] = {
+@@ -936,6 +1037,20 @@ static int s2mpu06_fg_probe(struct platform_device *pdev)
+ 	if (ret)
+ 		return dev_err_probe(dev, ret, "cannot read the ageing tables\n");
+ 
++	crc8_populate_msb(s2mpu06_fg_crc8_table, S2MPU06_FG_CRC8_POLY);
++	fg->nvmem = devm_nvmem_device_get(dev, "s2mpu06-scratch");
++	if (IS_ERR(fg->nvmem)) {
++		ret = PTR_ERR(fg->nvmem);
++		fg->nvmem = NULL;
++		if (ret == -EPROBE_DEFER)
++			return ret;
++		dev_warn(dev, "no storage for the cycle count (%d), ageing stays off\n", ret);
++	} else {
++		s2mpu06_fg_cycle_load(fg);
++		/* the first poll sets the reference, drops are counted from then on */
++		fg->cycle_ref = 0;
++	}
++
+ 	/* the data version in the gauge has to survive a reset */
+ 	if (!regmap_read(fg->s2m->fg, S2MPU06_FG_CTRL, &ctrl))
+ 		fg->data_ver = ctrl & S2MPU06_FG_CTRL_DATA_VER;
+diff --git a/drivers/rtc/Kconfig b/drivers/rtc/Kconfig
+index c5c81fa75..fe1493015 100644
+--- a/drivers/rtc/Kconfig
++++ b/drivers/rtc/Kconfig
+@@ -734,9 +734,11 @@ config RTC_DRV_RV8803
+ config RTC_DRV_S2MPU06
+ 	tristate "Samsung S2MPU06 RTC"
+ 	depends on MFD_S2MPU06
++	select NVMEM
+ 	help
+ 	  If you say yes here you will get support for the RTC of the
+-	  Samsung S2MPU06 PMIC.
++	  Samsung S2MPU06 PMIC. Its unused second alarm is offered as a
++	  few bytes of battery-backed NVMEM.
+ 
+ config RTC_DRV_S5M
+ 	tristate "Samsung S2M/S5M series"
+diff --git a/drivers/rtc/rtc-s2mpu06.c b/drivers/rtc/rtc-s2mpu06.c
+index 5a21d6ccc..74ad800b7 100644
+--- a/drivers/rtc/rtc-s2mpu06.c
++++ b/drivers/rtc/rtc-s2mpu06.c
+@@ -13,6 +13,7 @@
+ #include <linux/mfd/samsung/s2mpu06.h>
+ #include <linux/mod_devicetable.h>
+ #include <linux/module.h>
++#include <linux/nvmem-provider.h>
+ #include <linux/mutex.h>
+ #include <linux/platform_device.h>
+ #include <linux/regmap.h>
+@@ -24,6 +25,7 @@
+ #define S2MPU06_RTC_CAPSEL		0x03
+ #define S2MPU06_RTC_TIME		0x04	/* sec, min, hour, weekday, date, month, year */
+ #define S2MPU06_RTC_ALARM0		0x0b	/* same layout as the time */
++#define S2MPU06_RTC_ALARM1		0x12	/* same layout as the time */
+ 
+ #define S2MPU06_RTC_CTRL_24H		BIT(1)
+ #define S2MPU06_RTC_CAPSEL_VAL		0xf8
+@@ -42,6 +44,15 @@
+ #define S2MPU06_PMIC_STATUS2		0x07
+ #define S2MPU06_STATUS2_RTCA0E		BIT(2)
+ 
++/*
++ * Alarm 1 is not used by anything, and its registers keep what is written to
++ * them. With the alarm enable bit (bit 7) of every register left clear they
++ * give 46 bits of battery-backed storage, which are offered as a small NVMEM
++ * device. Not every bit of a register is implemented.
++ */
++#define S2MPU06_RTC_SCRATCH_BYTES	5
++static const u8 s2mpu06_rtc_scratch_width[] = { 7, 7, 7, 7, 6, 5, 7 };
++
+ enum {
+ 	RTC_SEC,
+ 	RTC_MIN,
+@@ -237,6 +248,99 @@ static const struct rtc_class_ops s2mpu06_rtc_ops = {
+ 	.alarm_irq_enable	= s2mpu06_rtc_alarm_irq_enable,
+ };
+ 
++static int s2mpu06_rtc_scratch_load(struct s2mpu06_rtc *info, u64 *val)
++{
++	u8 raw[RTC_NR_REGS];
++	int i, shift = 0, ret;
++
++	ret = s2mpu06_rtc_update(info, S2MPU06_RTC_UPDATE_RUDR);
++	if (!ret)
++		ret = regmap_bulk_read(info->s2m->rtc, S2MPU06_RTC_ALARM1, raw, RTC_NR_REGS);
++	if (ret)
++		return ret;
++
++	*val = 0;
++	for (i = 0; i < RTC_NR_REGS; i++) {
++		*val |= (u64)(raw[i] & GENMASK(s2mpu06_rtc_scratch_width[i] - 1, 0)) << shift;
++		shift += s2mpu06_rtc_scratch_width[i];
++	}
++
++	return 0;
++}
++
++static int s2mpu06_rtc_scratch_store(struct s2mpu06_rtc *info, u64 val)
++{
++	u8 raw[RTC_NR_REGS];
++	int i, ret;
++
++	for (i = 0; i < RTC_NR_REGS; i++) {
++		raw[i] = val & GENMASK(s2mpu06_rtc_scratch_width[i] - 1, 0);
++		val >>= s2mpu06_rtc_scratch_width[i];
++	}
++
++	ret = regmap_bulk_write(info->s2m->rtc, S2MPU06_RTC_ALARM1, raw, RTC_NR_REGS);
++	if (ret)
++		return ret;
++
++	return s2mpu06_rtc_update(info, S2MPU06_RTC_UPDATE_AUDR);
++}
++
++static int s2mpu06_rtc_nvmem_read(void *priv, unsigned int offset, void *buf, size_t bytes)
++{
++	struct s2mpu06_rtc *info = priv;
++	__le64 le;
++	u64 val;
++	int ret;
++
++	mutex_lock(&info->lock);
++	ret = s2mpu06_rtc_scratch_load(info, &val);
++	mutex_unlock(&info->lock);
++	if (ret)
++		return ret;
++
++	le = cpu_to_le64(val);
++	memcpy(buf, (u8 *)&le + offset, bytes);
++	return 0;
++}
++
++static int s2mpu06_rtc_nvmem_write(void *priv, unsigned int offset, void *buf, size_t bytes)
++{
++	struct s2mpu06_rtc *info = priv;
++	__le64 le;
++	u64 val;
++	int ret;
++
++	mutex_lock(&info->lock);
++	ret = s2mpu06_rtc_scratch_load(info, &val);
++	if (!ret) {
++		le = cpu_to_le64(val);
++		memcpy((u8 *)&le + offset, buf, bytes);
++		ret = s2mpu06_rtc_scratch_store(info, le64_to_cpu(le));
++	}
++	mutex_unlock(&info->lock);
++
++	return ret;
++}
++
++static int s2mpu06_rtc_register_nvmem(struct s2mpu06_rtc *info)
++{
++	struct nvmem_config nvmem = {
++		.dev = info->dev,
++		.name = "s2mpu06-scratch",
++		.id = NVMEM_DEVID_NONE,
++		.type = NVMEM_TYPE_BATTERY_BACKED,
++		.root_only = true,
++		.word_size = 1,
++		.stride = 1,
++		.size = S2MPU06_RTC_SCRATCH_BYTES,
++		.reg_read = s2mpu06_rtc_nvmem_read,
++		.reg_write = s2mpu06_rtc_nvmem_write,
++		.priv = info,
++	};
++
++	return PTR_ERR_OR_ZERO(devm_nvmem_register(info->dev, &nvmem));
++}
++
+ static int s2mpu06_rtc_init_regs(struct s2mpu06_rtc *info)
+ {
+ 	struct regmap *rtc = info->s2m->rtc;
+@@ -313,7 +417,11 @@ static int s2mpu06_rtc_probe(struct platform_device *pdev)
+ 
+ 	device_init_wakeup(dev, true);
+ 
+-	return devm_rtc_register_device(info->rtc);
++	ret = devm_rtc_register_device(info->rtc);
++	if (ret)
++		return ret;
++
++	return s2mpu06_rtc_register_nvmem(info);
+ }
+ 
+ static const struct platform_device_id s2mpu06_rtc_id[] = {

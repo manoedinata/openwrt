@@ -1,0 +1,55 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 21:40:01 +0700
+Subject: [PATCH 83/92] arm64: dts: exynos7570: add the GPU
+
+Add the G3D power domain, CMU_G3D and the Mali-T720. The bootloader
+leaves the core clock at 349.4 MHz (SHARED2 / 4), the lowest level of
+the vendor table, which is what Panfrost runs at without an OPP table.
+The supply (BUCK1) is shared with the CPU cluster and left alone.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 662c949bde1effa73bc6b69a052ca7077ef98922)
+---
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi | 28 ++++++++++++++++++++++
+ 1 file changed, 28 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index 872fc0fce..b1fea8485 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -318,6 +318,34 @@ cmu_dispaud: clock-controller@148d0000 {
+ 			power-domains = <&pd_dispaud>;
+ 		};
+ 
++		pd_g3d: power-domain@11c84000 {
++			compatible = "samsung,exynos5433-pd";
++			reg = <0x11c84000 0x20>;
++			#power-domain-cells = <0>;
++			label = "G3D";
++		};
++
++		cmu_g3d: clock-controller@11460000 {
++			compatible = "samsung,exynos7570-cmu-g3d";
++			reg = <0x11460000 0x1000>;
++			#clock-cells = <1>;
++
++			clock-names = "oscclk", "bus";
++			clocks = <&oscclk>, <&cmu_mif CLK_GOUT_MIF_CMU_G3D>;
++			power-domains = <&pd_g3d>;
++		};
++
++		gpu: gpu@11400000 {
++			compatible = "samsung,exynos7570-mali", "arm,mali-t720";
++			reg = <0x11400000 0x5000>;
++			interrupts = <GIC_SPI 282 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 283 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 281 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "job", "mmu", "gpu";
++			clocks = <&cmu_g3d CLK_GOUT_G3D_CLK>;
++			power-domains = <&pd_g3d>;
++		};
++
+ 		syscon_disp: system-controller@148f100c {
+ 			compatible = "samsung,exynos7570-disp-sysreg", "syscon";
+ 			reg = <0x148f100c 0x04>;

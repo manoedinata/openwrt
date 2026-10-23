@@ -1,0 +1,30 @@
+Samsung Exynos7570: Samsung Galaxy J4 (SM-J400F)
+================================================
+
+Kernel: 6.12 with the J4 port (github.com/manoedinata/linux, branch
+exynos7570-6.12) as patches-6.12/. Mobile data needs the "j4" feed
+(feeds.conf.default): samsungipcd and ModemManager with its plugin.
+
+Build:
+
+  ./scripts/feeds update -a
+  ./scripts/feeds install -a
+  ./scripts/feeds install -p j4 -f -a   # this modemmanager replaces the stock one
+  cp j4lte.diffconfig .config
+  make defconfig
+  make
+
+CONFIG_KERNEL_DEVTMPFS and CONFIG_KERNEL_DEVMEM (in j4lte.diffconfig) are
+required: they override the target's kernel config, and the boot ramdisk
+mounts devtmpfs and writes the boot reason through /dev/mem.
+
+Install: S-BOOT only boots an Android boot image, so the kernel Image and
+exynos7570-j4lte.dtb are wrapped by uniLoader with mainline-tools/pack.sh
+from github.com/Manoedinata/debian_j4lte (root=/dev/mmcblk0p25) and written
+to BOOT (mmcblk0p10). The rootfs tarball goes onto USERDATA (mmcblk0p25),
+formatted ext4. If that is done from the stock 3.18 kernel, format with
+"mkfs.ext4 -O ^metadata_csum": 3.18 corrupts the superblock checksum of a
+metadata_csum filesystem.
+
+The only network link is the USB RNDIS gadget (rndis0 in br-lan,
+172.16.42.1); mobile data comes up as the wwan interface on rmnet0.

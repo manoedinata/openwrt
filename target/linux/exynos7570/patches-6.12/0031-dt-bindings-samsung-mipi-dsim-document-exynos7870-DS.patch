@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Sun, 6 Jul 2025 23:55:45 +0530
+Subject: [PATCH 31/92] dt-bindings: samsung,mipi-dsim: document exynos7870
+ DSIM compatible
+
+Add compatible string for Exynos7870 DSIM bridge controller. The
+device requires four clock sources, in schema they're named as "bus",
+"pll", "byte", and "esc".
+
+Suggested-by: Krzysztof Kozlowski <krzk@kernel.org>
+Reviewed-by: Rob Herring (Arm) <robh@kernel.org>
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Signed-off-by: Inki Dae <inki.dae@samsung.com>
+(cherry picked from commit 7f8d35b589c9f6acda0e36b184c193d38f092c36):
+---
+ .../display/bridge/samsung,mipi-dsim.yaml     | 27 +++++++++++++++++++
+ 1 file changed, 27 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/display/bridge/samsung,mipi-dsim.yaml b/Documentation/devicetree/bindings/display/bridge/samsung,mipi-dsim.yaml
+index 4ed7a799b..dbfca5465 100644
+--- a/Documentation/devicetree/bindings/display/bridge/samsung,mipi-dsim.yaml
++++ b/Documentation/devicetree/bindings/display/bridge/samsung,mipi-dsim.yaml
+@@ -24,6 +24,7 @@ properties:
+           - samsung,exynos5410-mipi-dsi
+           - samsung,exynos5422-mipi-dsi
+           - samsung,exynos5433-mipi-dsi
++          - samsung,exynos7870-mipi-dsi
+           - fsl,imx8mm-mipi-dsim
+           - fsl,imx8mp-mipi-dsim
+       - items:
+@@ -142,6 +143,32 @@ required:
+ 
+ allOf:
+   - $ref: ../dsi-controller.yaml#
++  - if:
++      properties:
++        compatible:
++          contains:
++            const: samsung,exynos7870-mipi-dsi
++
++    then:
++      properties:
++        clocks:
++          minItems: 4
++          maxItems: 4
++
++        clock-names:
++          items:
++            - const: bus
++            - const: pll
++            - const: byte
++            - const: esc
++
++        ports:
++          required:
++            - port@0
++
++      required:
++        - ports
++
+   - if:
+       properties:
+         compatible:

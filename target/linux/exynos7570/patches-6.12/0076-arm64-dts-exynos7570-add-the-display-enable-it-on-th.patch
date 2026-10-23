@@ -1,0 +1,200 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 17:31:15 +0700
+Subject: [PATCH 76/92] arm64: dts: exynos7570: add the display, enable it on
+ the j4lte
+
+Add the DISPAUD power domain and CMU, the display SYSREG and MIPI PHY, the
+DECON with its SysMMU and the DSIM, and enable them on the J4 with its
+EA8061S panel. The bootloader leaves the panel on with the video stream
+running, which the panel driver is told to keep.
+
+Bind the console to the second framebuffer (fbcon=map:1): fbcon only takes
+over a framebuffer registered after the simpledrm one, which Exynos DRM
+removes, if it matches the console map.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 151c81b9b32d66713817d4225646d18441239617)
+---
+ .../boot/dts/exynos/exynos7570-j4lte.dts      |  28 ++++-
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi    | 112 ++++++++++++++++++
+ 2 files changed, 139 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index b59a8044b..ba4be5b1b 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -19,7 +19,7 @@ chosen {
+ 		#size-cells = <1>;
+ 		ranges;
+ 
+-		bootargs = "console=tty0 ignore_loglevel clk_ignore_unused regulator_ignore_unused root=/dev/mmcblk0p25 rootfstype=ext4";
++		bootargs = "console=tty0 fbcon=map:1 ignore_loglevel clk_ignore_unused regulator_ignore_unused root=/dev/mmcblk0p25 rootfstype=ext4";
+ 
+ 		/* Set up by the bootloader (uniLoader), scanned out by DECON */
+ 		framebuffer0: framebuffer@67000000 {
+@@ -456,3 +456,29 @@ touchscreen@48 {
+ 		pinctrl-0 = <&tsp_irq>;
+ 	};
+ };
++
++&decon {
++	status = "okay";
++};
++
++&dsi {
++	#address-cells = <1>;
++	#size-cells = <0>;
++	status = "okay";
++
++	samsung,burst-clock-frequency = <490000000>;
++	samsung,pll-clock-frequency = <26000000>;
++	samsung,esc-clock-frequency = <16000000>;
++
++	panel@0 {
++		compatible = "samsung,ea8061s";
++		reg = <0>;
++
++		/* S-BOOT leaves the panel on with the video stream running */
++		samsung,keep-bootloader-state;
++
++		vddio-supply = <&ldo20_reg>;
++		enable-gpios = <&gpd1 0 GPIO_ACTIVE_HIGH>;
++		reset-gpios = <&gpd2 0 GPIO_ACTIVE_HIGH>;
++	};
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index 491b7cf2e..d9146e207 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -299,11 +299,42 @@ cmu_fsys: clock-controller@13730000 {
+ 			clocks = <&oscclk>;
+ 		};
+ 
++		pd_dispaud: power-domain@11c84020 {
++			compatible = "samsung,exynos5433-pd";
++			reg = <0x11c84020 0x20>;
++			#power-domain-cells = <0>;
++			label = "DISPAUD";
++		};
++
++		cmu_dispaud: clock-controller@148d0000 {
++			compatible = "samsung,exynos7570-cmu-dispaud";
++			reg = <0x148d0000 0x1000>;
++			#clock-cells = <1>;
++
++			clock-names = "oscclk", "bus", "decon_vclk";
++			clocks = <&oscclk>,
++				 <&cmu_mif CLK_GOUT_MIF_CMU_DISPAUD_BUS>,
++				 <&cmu_mif CLK_GOUT_MIF_CMU_DISPAUD_DECON_INT_VCLK>;
++			power-domains = <&pd_dispaud>;
++		};
++
++		syscon_disp: system-controller@148f100c {
++			compatible = "samsung,exynos7570-disp-sysreg", "syscon";
++			reg = <0x148f100c 0x04>;
++		};
++
+ 		pmu_system_controller: system-controller@11c80000 {
+ 			compatible = "samsung,exynos7570-pmu",
+ 				     "samsung,exynos7-pmu", "syscon";
+ 			reg = <0x11c80000 0x10000>;
+ 
++			mipi_phy: mipi-phy {
++				compatible = "samsung,exynos7570-mipi-video-phy";
++				#phy-cells = <1>;
++
++				samsung,disp-sysreg = <&syscon_disp>;
++			};
++
+ 			reboot-mode {
+ 				compatible = "syscon-reboot-mode";
+ 				offset = <0x080c>;
+@@ -355,6 +386,87 @@ wakeup-interrupt-controller {
+ 			};
+ 		};
+ 
++		sysmmu_decon: iommu@14860000 {
++			compatible = "samsung,exynos-sysmmu";
++			reg = <0x14860000 0x1000>;
++			interrupts = <GIC_SPI 193 IRQ_TYPE_LEVEL_HIGH>;
++			#iommu-cells = <0>;
++
++			clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_BUS>;
++			clock-names = "sysmmu";
++
++			power-domains = <&pd_dispaud>;
++		};
++
++		decon: display-controller@14830000 {
++			compatible = "samsung,exynos7570-decon";
++			reg = <0x14830000 0x8000>;
++			interrupts = <GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 203 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "fifo", "vsync", "lcd_sys";
++			power-domains = <&pd_dispaud>;
++
++			clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_APB_DISP>,
++				 <&cmu_dispaud CLK_GOUT_DISPAUD_BUS_DISP>,
++				 <&cmu_dispaud CLK_DOUT_DISPAUD_DECON_VCLK>,
++				 <&cmu_dispaud CLK_GOUT_DISPAUD_DECON_VCLK>;
++			clock-names = "pclk_decon0", "aclk_decon0",
++				      "decon0_eclk", "decon0_vclk";
++
++			iommus = <&sysmmu_decon>;
++
++			status = "disabled";
++
++			port {
++				decon_to_dsi: endpoint {
++					remote-endpoint = <&dsi_to_decon>;
++				};
++			};
++		};
++
++		dsi: dsi@14800000 {
++			compatible = "samsung,exynos7570-mipi-dsi";
++			reg = <0x14800000 0x100>;
++			interrupts = <GIC_SPI 207 IRQ_TYPE_LEVEL_HIGH>;
++
++			clocks = <&cmu_dispaud CLK_GOUT_DISPAUD_BUS_DISP>,
++				 <&cmu_dispaud CLK_GOUT_DISPAUD_APB_DISP>,
++				 <&cmu_dispaud CLK_GOUT_DISPAUD_MIPIPHY_TXBYTECLKHS>,
++				 <&cmu_dispaud CLK_GOUT_DISPAUD_MIPIPHY_RXCLKESC0>;
++			clock-names = "bus", "pll", "byte", "esc";
++
++			power-domains = <&pd_dispaud>;
++
++			/* the user muxes select OSCCLK out of reset */
++			assigned-clocks = <&cmu_dispaud CLK_MOUT_DISPAUD_BUS_USER>,
++					  <&cmu_dispaud CLK_MOUT_DISPAUD_DECON_VCLK_USER>,
++					  <&cmu_dispaud CLK_MOUT_DISPAUD_MIPIPHY_TXBYTECLKHS_USER>,
++					  <&cmu_dispaud CLK_MOUT_DISPAUD_MIPIPHY_RXCLKESC0_USER>;
++			assigned-clock-parents = <&cmu_mif CLK_GOUT_MIF_CMU_DISPAUD_BUS>,
++						 <&cmu_mif CLK_GOUT_MIF_CMU_DISPAUD_DECON_INT_VCLK>,
++						 <&cmu_dispaud CLK_FRAT_DISPAUD_MIPIPHY_TXBYTECLKHS>,
++						 <&cmu_dispaud CLK_FRAT_DISPAUD_MIPIPHY_RXCLKESC0>;
++
++			phys = <&mipi_phy 1>;
++			phy-names = "dsim";
++
++			status = "disabled";
++
++			ports {
++				#address-cells = <1>;
++				#size-cells = <0>;
++
++				port@0 {
++					reg = <0>;
++
++					dsi_to_decon: endpoint {
++						remote-endpoint = <&decon_to_dsi>;
++					};
++				};
++			};
++		};
++
+ 		pinctrl_dispaud: pinctrl@148c0000 {
+ 			compatible = "samsung,exynos7570-pinctrl";
+ 			reg = <0x148c0000 0x1000>;

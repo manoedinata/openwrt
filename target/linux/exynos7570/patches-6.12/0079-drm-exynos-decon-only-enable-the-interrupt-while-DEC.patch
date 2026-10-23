@@ -1,0 +1,64 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 21:13:32 +0700
+Subject: [PATCH 79/92] drm/exynos: decon: only enable the interrupt while
+ DECON is resumed
+
+The handler reads registers, which abort while the clocks or the power
+domain are off. A bootloader that leaves DECON running can have an
+interrupt pending before the first runtime resume, so request it
+disabled and enable it only between resume and suspend.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit bf8e12b3e864db728171ff5e7c8aef726c6daaec)
+---
+ drivers/gpu/drm/exynos/exynos7_drm_decon.c | 15 ++++++++++++++-
+ 1 file changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/exynos/exynos7_drm_decon.c b/drivers/gpu/drm/exynos/exynos7_drm_decon.c
+index 3953f5611..444fcf8a2 100644
+--- a/drivers/gpu/drm/exynos/exynos7_drm_decon.c
++++ b/drivers/gpu/drm/exynos/exynos7_drm_decon.c
+@@ -90,6 +90,7 @@ struct decon_context {
+ 	/* output left running by the bootloader, not taken over yet */
+ 	bool				handover;
+ 	bool				handover_done;
++	int				irq;
+ 
+ 	const struct decon_data *data;
+ 	struct drm_encoder *encoder;
+@@ -839,7 +840,15 @@ static int decon_probe(struct platform_device *pdev)
+ 	if (ret < 0)
+ 		goto err_iounmap;
+ 
+-	ret = devm_request_irq(dev, ret, decon_irq_handler, 0, "drm_decon", ctx);
++	ctx->irq = ret;
++
++	/*
++	 * The handler reads registers, so it must only run while the clocks and
++	 * the power domain are on: a bootloader that leaves DECON running can
++	 * have an interrupt pending before the first runtime resume.
++	 */
++	ret = devm_request_irq(dev, ctx->irq, decon_irq_handler, IRQF_NO_AUTOEN,
++			       "drm_decon", ctx);
+ 	if (ret) {
+ 		dev_err(dev, "irq request failed.\n");
+ 		goto err_iounmap;
+@@ -888,6 +897,8 @@ static int exynos7_decon_suspend(struct device *dev)
+ {
+ 	struct decon_context *ctx = dev_get_drvdata(dev);
+ 
++	disable_irq(ctx->irq);
++
+ 	clk_disable_unprepare(ctx->vclk);
+ 	clk_disable_unprepare(ctx->eclk);
+ 	clk_disable_unprepare(ctx->aclk);
+@@ -929,6 +940,8 @@ static int exynos7_decon_resume(struct device *dev)
+ 		goto err_vclk_enable;
+ 	}
+ 
++	enable_irq(ctx->irq);
++
+ 	return 0;
+ 
+ err_vclk_enable:

@@ -1,0 +1,105 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Thu, 12 Jun 2025 20:39:30 +0530
+Subject: [PATCH 19/92] phy: exynos-mipi-video: introduce support for
+ exynos7870
+
+Add support for Exynos7870 in the existing MIPI CSIS/DSIM driver. The
+SoC has one DSIM phy and three CSIS phys.
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Reviewed-by: Neil Armstrong <neil.armstrong@linaro.org>
+Link: https://lore.kernel.org/r/20250612-exynos7870-mipi-phy-v1-2-3fff0b62d9d3@disroot.org
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+(cherry picked from commit 543f5e314282c4c2e5114f88ddecc9aeaf0985e2):
+---
+ drivers/phy/samsung/phy-exynos-mipi-video.c | 52 +++++++++++++++++++++
+ include/linux/soc/samsung/exynos-regs-pmu.h |  5 ++
+ 2 files changed, 57 insertions(+)
+
+diff --git a/drivers/phy/samsung/phy-exynos-mipi-video.c b/drivers/phy/samsung/phy-exynos-mipi-video.c
+index f6756a609..b184923b9 100644
+--- a/drivers/phy/samsung/phy-exynos-mipi-video.c
++++ b/drivers/phy/samsung/phy-exynos-mipi-video.c
+@@ -213,6 +213,55 @@ static const struct mipi_phy_device_desc exynos5433_mipi_phy = {
+ 	},
+ };
+ 
++static const struct mipi_phy_device_desc exynos7870_mipi_phy = {
++	.num_regmaps = 3,
++	.regmap_names = {
++		"samsung,pmu-syscon",
++		"samsung,disp-sysreg",
++		"samsung,cam-sysreg"
++	},
++	.num_phys = 4,
++	.phys = {
++		{
++			/* EXYNOS_MIPI_PHY_ID_CSIS0 */
++			.coupled_phy_id = EXYNOS_MIPI_PHY_ID_DSIM0,
++			.enable_val = EXYNOS4_PHY_ENABLE,
++			.enable_reg = EXYNOS7870_MIPI_PHY_CONTROL0,
++			.enable_map = EXYNOS_MIPI_REGMAP_PMU,
++			.resetn_val = BIT(0),
++			.resetn_reg = 0,
++			.resetn_map = EXYNOS_MIPI_REGMAP_CAM0,
++		}, {
++			/* EXYNOS_MIPI_PHY_ID_DSIM0 */
++			.coupled_phy_id = EXYNOS_MIPI_PHY_ID_CSIS0,
++			.enable_val = EXYNOS4_PHY_ENABLE,
++			.enable_reg = EXYNOS7870_MIPI_PHY_CONTROL0,
++			.enable_map = EXYNOS_MIPI_REGMAP_PMU,
++			.resetn_val = BIT(0),
++			.resetn_reg = 0,
++			.resetn_map = EXYNOS_MIPI_REGMAP_DISP,
++		}, {
++			/* EXYNOS_MIPI_PHY_ID_CSIS1 */
++			.coupled_phy_id = EXYNOS_MIPI_PHY_ID_NONE,
++			.enable_val = EXYNOS4_PHY_ENABLE,
++			.enable_reg = EXYNOS7870_MIPI_PHY_CONTROL1,
++			.enable_map = EXYNOS_MIPI_REGMAP_PMU,
++			.resetn_val = BIT(1),
++			.resetn_reg = 0,
++			.resetn_map = EXYNOS_MIPI_REGMAP_CAM0,
++		}, {
++			/* EXYNOS_MIPI_PHY_ID_CSIS2 */
++			.coupled_phy_id = EXYNOS_MIPI_PHY_ID_NONE,
++			.enable_val = EXYNOS4_PHY_ENABLE,
++			.enable_reg = EXYNOS7870_MIPI_PHY_CONTROL2,
++			.enable_map = EXYNOS_MIPI_REGMAP_PMU,
++			.resetn_val = BIT(2),
++			.resetn_reg = 0,
++			.resetn_map = EXYNOS_MIPI_REGMAP_CAM0,
++		},
++	},
++};
++
+ struct exynos_mipi_video_phy {
+ 	struct regmap *regmaps[EXYNOS_MIPI_REGMAPS_NUM];
+ 	int num_phys;
+@@ -351,6 +400,9 @@ static const struct of_device_id exynos_mipi_video_phy_of_match[] = {
+ 	}, {
+ 		.compatible = "samsung,exynos5433-mipi-video-phy",
+ 		.data = &exynos5433_mipi_phy,
++	}, {
++		.compatible = "samsung,exynos7870-mipi-video-phy",
++		.data = &exynos7870_mipi_phy,
+ 	},
+ 	{ /* sentinel */ },
+ };
+diff --git a/include/linux/soc/samsung/exynos-regs-pmu.h b/include/linux/soc/samsung/exynos-regs-pmu.h
+index cde299a85..2e3ee8344 100644
+--- a/include/linux/soc/samsung/exynos-regs-pmu.h
++++ b/include/linux/soc/samsung/exynos-regs-pmu.h
+@@ -659,6 +659,11 @@
+ #define EXYNOS5433_PAD_RETENTION_UFS_OPTION			(0x3268)
+ #define EXYNOS5433_PAD_RETENTION_FSYSGENIO_OPTION		(0x32A8)
+ 
++/* For Exynos7870 */
++#define EXYNOS7870_MIPI_PHY_CONTROL0				(0x070c)
++#define EXYNOS7870_MIPI_PHY_CONTROL1				(0x0714)
++#define EXYNOS7870_MIPI_PHY_CONTROL2				(0x0734)
++
+ /* For Tensor GS101 */
+ #define GS101_SYSIP_DAT0					(0x810)
+ #define GS101_SYSTEM_CONFIGURATION				(0x3A00)

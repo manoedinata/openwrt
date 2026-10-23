@@ -1,0 +1,510 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sat, 24 Oct 2026 01:49:40 +0700
+Subject: [PATCH 91/92] misc: modem_v1: build cleanly with GCC and
+ CONFIG_WERROR
+
+OpenWrt builds the kernel with GCC and CONFIG_WERROR=y, which turns the
+downstream code's warnings into errors. Fix them:
+
+- modem_main.c copied MAX_MIF_SEPA_SIZE (32) bytes out of the 4-byte
+  "size" into the IPC logger header, reading 28 bytes of stack; copy
+  sizeof(size).
+- stop_net_ifaces() tested "!atomic_read() > 0", which parses as
+  "(!x) > 0"; netif_stopped is 0 or 1, so write the intended "!x".
+- modem_notify_event() takes the modem_state that enum modem_event
+  mirrors; make the conversion explicit.
+- Mark the two intended fall-throughs.
+- "static const char const *" and "static const inline char *" become
+  "static const char * const" and "static inline const char *".
+- modem_variation.h declares every modem and link constructor, not only
+  the configured ones, so the dummies have prototypes too; the files
+  that define the real ones include it, mcu_ipc.c includes its own
+  public header (the private mcu_ipc.h, which shared its include guard,
+  gets its own guard and takes enum mcu_ipc_region from it), the unused NAPI poll (mem_netdev_poll()) is only built with
+  CONFIG_LINK_DEVICE_NAPI like the rest of the NAPI code, and the two
+  ss310ap exports are
+  declared in modem_prj.h.
+- The pm_qos stubs in compat.h evaluate their arguments, so the request
+  objects are no longer unused.
+- pr_buffer() uses a fixed 16-byte (48-character) buffer instead of a
+  VLA; every caller passes max_len 16.
+---
+ drivers/misc/modem_v1/compat.h             |  8 ++--
+ drivers/misc/modem_v1/link_device_shmem.c  |  8 +++-
+ drivers/misc/modem_v1/mcu_ipc.c            |  2 +
+ drivers/misc/modem_v1/mcu_ipc.h            | 11 ++---
+ drivers/misc/modem_v1/modem_ctrl_ss310ap.c |  1 +
+ drivers/misc/modem_v1/modem_io_device.c    |  1 +
+ drivers/misc/modem_v1/modem_main.c         |  2 +-
+ drivers/misc/modem_v1/modem_prj.h          |  8 +++-
+ drivers/misc/modem_v1/modem_utils.c        |  6 +--
+ drivers/misc/modem_v1/modem_utils.h        | 37 ++++++++-------
+ drivers/misc/modem_v1/modem_variation.h    | 55 ++--------------------
+ 11 files changed, 52 insertions(+), 87 deletions(-)
+
+diff --git a/drivers/misc/modem_v1/compat.h b/drivers/misc/modem_v1/compat.h
+index 62a1f4c27..4f03b3440 100644
+--- a/drivers/misc/modem_v1/compat.h
++++ b/drivers/misc/modem_v1/compat.h
+@@ -57,10 +57,10 @@ static inline void hrtimer_setup(struct hrtimer *timer,
+ #define PM_QOS_BUS_THROUGHPUT_MAX		0
+ #define PM_QOS_DEVICE_THROUGHPUT		0
+ #define PM_QOS_BUS_THROUGHPUT_MAX_DEFAULT_VALUE	0
+-#define pm_qos_add_request(req, class, val)	do { } while (0)
+-#define pm_qos_update_request(req, val)		do { } while (0)
+-#define pm_qos_remove_request(req)		do { } while (0)
+-#define pm_qos_request_active(req)		0
++#define pm_qos_add_request(req, class, val)	do { (void)(req); (void)(class); (void)(val); } while (0)
++#define pm_qos_update_request(req, val)		do { (void)(req); (void)(val); } while (0)
++#define pm_qos_remove_request(req)		do { (void)(req); } while (0)
++#define pm_qos_request_active(req)		((void)(req), 0)
+ 
+ /* the legacy GPIO sysfs export is gone; the J4 exports no modem GPIOs */
+ #define gpio_export(gpio, dir)			(-ENOSYS)
+diff --git a/drivers/misc/modem_v1/link_device_shmem.c b/drivers/misc/modem_v1/link_device_shmem.c
+index be1019fc0..fccc5b234 100644
+--- a/drivers/misc/modem_v1/link_device_shmem.c
++++ b/drivers/misc/modem_v1/link_device_shmem.c
+@@ -40,6 +40,7 @@
+ 
+ #include "modem_prj.h"
+ #include "modem_utils.h"
++#include "modem_variation.h"
+ #include "link_device_memory.h"
+ #include "link_ctrlmsg_iosm.h"
+ #include <linux/modem_notifier.h>
+@@ -267,7 +268,7 @@ static void shmem_handle_cp_crash(struct mem_link_device *mld,
+ 	purge_txq(mld);
+ 
+ 	if (cp_online(mc))
+-		modem_notify_event(state);
++		modem_notify_event((enum modem_event)state);
+ 
+ 	if (cp_online(mc) || cp_booting(mc))
+ 		set_modem_state(mld, state);
+@@ -1679,7 +1680,8 @@ static int rx_ipc_frames_from_rb(struct sbd_ring_buffer *rb)
+ 	return rcvd;
+ }
+ 
+-int mem_netdev_poll(struct napi_struct *napi, int budget)
++#ifdef CONFIG_LINK_DEVICE_NAPI
++static int mem_netdev_poll(struct napi_struct *napi, int budget)
+ {
+ 	int rcvd;
+ 	struct vnet *vnet = netdev_priv(napi->dev);
+@@ -1700,6 +1702,7 @@ int mem_netdev_poll(struct napi_struct *napi, int budget)
+ 
+ 	return rcvd;
+ }
++#endif
+ 
+ static int recv_sbd_ipc_frames(struct mem_link_device *mld,
+ 				struct mem_snapshot *mst)
+@@ -1912,6 +1915,7 @@ static int shmem_send(struct link_device *ld, struct io_device *iod,
+ 			wait_for_completion(&ld->raw_tx_resumed);
+ 			mif_info("TX resumed done.\n");
+ 		}
++		fallthrough;
+ 
+ 	case IPC_RFS:
+ 	case IPC_FMT:
+diff --git a/drivers/misc/modem_v1/mcu_ipc.c b/drivers/misc/modem_v1/mcu_ipc.c
+index 7634802f7..f7e79e854 100644
+--- a/drivers/misc/modem_v1/mcu_ipc.c
++++ b/drivers/misc/modem_v1/mcu_ipc.c
+@@ -20,6 +20,8 @@
+ #include <linux/dma-mapping.h>
+ #include <linux/delay.h>
+ 
++#include <linux/mcu_ipc.h>
++
+ #include "regs-mcu_ipc.h"
+ #include "mcu_ipc.h"
+ 
+diff --git a/drivers/misc/modem_v1/mcu_ipc.h b/drivers/misc/modem_v1/mcu_ipc.h
+index f522a7457..5315e1552 100644
+--- a/drivers/misc/modem_v1/mcu_ipc.h
++++ b/drivers/misc/modem_v1/mcu_ipc.h
+@@ -10,18 +10,15 @@
+  * option) any later version.
+ */
+ 
+-#ifndef MCU_IPC_H
+-#define MCU_IPC_H
++#ifndef MCU_IPC_DRV_H
++#define MCU_IPC_DRV_H
+ 
+ /* FIXME: will be removed */
+ /* Shared register with 64 * 32 words */
+ #define MAX_MBOX_NUM	64
+ 
+-enum mcu_ipc_region {
+-	MCU_CP,
+-	MCU_GNSS,
+-	MCU_MAX,
+-};
++/* enum mcu_ipc_region comes from the public header */
++#include <linux/mcu_ipc.h>
+ 
+ struct mcu_ipc_ipc_handler {
+ 	void *data;
+diff --git a/drivers/misc/modem_v1/modem_ctrl_ss310ap.c b/drivers/misc/modem_v1/modem_ctrl_ss310ap.c
+index 898bac22d..18ba201a2 100644
+--- a/drivers/misc/modem_v1/modem_ctrl_ss310ap.c
++++ b/drivers/misc/modem_v1/modem_ctrl_ss310ap.c
+@@ -29,6 +29,7 @@
+ 
+ #include "modem_prj.h"
+ #include "modem_utils.h"
++#include "modem_variation.h"
+ #include "link_device_memory.h"
+ 
+ #include <linux/modem_notifier.h>
+diff --git a/drivers/misc/modem_v1/modem_io_device.c b/drivers/misc/modem_v1/modem_io_device.c
+index 6a8a1708e..cb5469527 100644
+--- a/drivers/misc/modem_v1/modem_io_device.c
++++ b/drivers/misc/modem_v1/modem_io_device.c
+@@ -557,6 +557,7 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
+ 				return 0;
+ 		}
+ 		/* fall through, if sim_state has been changed */
++		fallthrough;
+ 	case STATE_CRASH_EXIT:
+ 	case STATE_CRASH_RESET:
+ 	case STATE_NV_REBUILDING:
+diff --git a/drivers/misc/modem_v1/modem_main.c b/drivers/misc/modem_v1/modem_main.c
+index 0d5cb954b..b95627d36 100644
+--- a/drivers/misc/modem_v1/modem_main.c
++++ b/drivers/misc/modem_v1/modem_main.c
+@@ -86,7 +86,7 @@ static struct modem_shared *create_modem_shared_data(
+ 	memset(msd->storage.addr, 0, size + (MAX_MIF_SEPA_SIZE * 2));
+ 	memcpy(msd->storage.addr, MIF_SEPARATOR, strlen(MIF_SEPARATOR));
+ 	msd->storage.addr += MAX_MIF_SEPA_SIZE;
+-	memcpy(msd->storage.addr, &size, MAX_MIF_SEPA_SIZE);
++	memcpy(msd->storage.addr, &size, sizeof(size));
+ 	msd->storage.addr += MAX_MIF_SEPA_SIZE;
+ 	spin_lock_init(&msd->lock);
+ 	spin_lock_init(&msd->active_list_lock);
+diff --git a/drivers/misc/modem_v1/modem_prj.h b/drivers/misc/modem_v1/modem_prj.h
+index 1f0843bc7..02b0e6bb6 100644
+--- a/drivers/misc/modem_v1/modem_prj.h
++++ b/drivers/misc/modem_v1/modem_prj.h
+@@ -279,14 +279,14 @@ enum iod_rx_state {
+ 	MAX_IOD_RX_STATE
+ };
+ 
+-static const char const *rx_state_string[] = {
++static const char * const rx_state_string[] = {
+ 	[IOD_RX_ON_STANDBY]	= "RX_ON_STANDBY",
+ 	[IOD_RX_HEADER]		= "RX_HEADER",
+ 	[IOD_RX_PAYLOAD]	= "RX_PAYLOAD",
+ 	[IOD_RX_PADDING]	= "RX_PADDING",
+ };
+ 
+-static const inline char *rx_state(enum iod_rx_state state)
++static inline const char *rx_state(enum iod_rx_state state)
+ {
+ 	if (unlikely(state >= MAX_IOD_RX_STATE))
+ 		return "INVALID_STATE";
+@@ -741,4 +741,8 @@ static inline bool rx_possible(struct modem_ctl *mc)
+ int sipc5_init_io_device(struct io_device *iod);
+ void sipc5_deinit_io_device(struct io_device *iod);
+ 
++/* exported by modem_ctrl_ss310ap.c for other drivers */
++int ss310ap_force_crash_exit_ext(void);
++u32 ss310ap_get_evs_mode_ext(void);
++
+ #endif
+diff --git a/drivers/misc/modem_v1/modem_utils.c b/drivers/misc/modem_v1/modem_utils.c
+index aebce1098..6799f6947 100644
+--- a/drivers/misc/modem_v1/modem_utils.c
++++ b/drivers/misc/modem_v1/modem_utils.c
+@@ -494,8 +494,8 @@ void log_ipc_pkt(u8 ch, enum ipc_layer layer, enum direction dir,
+ int pr_buffer(const char *tag, const char *data, size_t data_len,
+ 							size_t max_len)
+ {
+-	size_t len = min(data_len, max_len);
+-	unsigned char str[len ? len * 3 : 1]; /* 1 <= sizeof <= max_len*3 */
++	size_t len = min3(data_len, max_len, (size_t)PR_BUFFER_MAX);
++	unsigned char str[PR_BUFFER_MAX * 3];
+ 	dump2hex(str, (len ? len * 3 : 1), data, len);
+ 
+ 	/* don't change this printk to mif_debug for print this as level7 */
+@@ -681,7 +681,7 @@ void stop_net_ifaces(struct link_device *ld)
+ 	unsigned long flags;
+ 	spin_lock_irqsave(&ld->netif_lock, flags);
+ 
+-	if (!atomic_read(&ld->netif_stopped) > 0) {
++	if (!atomic_read(&ld->netif_stopped)) {
+ 		if (ld->msd)
+ 			netif_tx_flowctl(ld->msd, true);
+ 
+diff --git a/drivers/misc/modem_v1/modem_utils.h b/drivers/misc/modem_v1/modem_utils.h
+index 5b5996281..12bb7c21e 100644
+--- a/drivers/misc/modem_v1/modem_utils.h
++++ b/drivers/misc/modem_v1/modem_utils.h
+@@ -108,14 +108,14 @@ enum ipc_layer {
+ 	MAX_SIPC_LAYER
+ };
+ 
+-static const char const *sipc_layer_string[] = {
++static const char * const sipc_layer_string[] = {
+ 	[LINK] = "LNK",
+ 	[IODEV] = "IOD",
+ 	[APP] = "APP",
+ 	[MAX_SIPC_LAYER] = "INVALID"
+ };
+ 
+-static const inline char *layer_str(enum ipc_layer layer)
++static inline const char *layer_str(enum ipc_layer layer)
+ {
+ 	if (unlikely(layer >= MAX_SIPC_LAYER))
+ 		return "INVALID";
+@@ -123,7 +123,7 @@ static const inline char *layer_str(enum ipc_layer layer)
+ 		return sipc_layer_string[layer];
+ }
+ 
+-static const char const *dev_format_string[] = {
++static const char * const dev_format_string[] = {
+ 	[IPC_FMT]	= "FMT",
+ 	[IPC_RAW]	= "RAW",
+ 	[IPC_RFS]	= "RFS",
+@@ -134,7 +134,7 @@ static const char const *dev_format_string[] = {
+ 	[IPC_DEBUG]	= "DEBUG",
+ };
+ 
+-static const inline char *dev_str(enum dev_format dev)
++static inline const char *dev_str(enum dev_format dev)
+ {
+ 	if (unlikely(dev >= MAX_DEV_FORMAT))
+ 		return "INVALID";
+@@ -147,12 +147,12 @@ static inline enum direction opposite(enum direction dir)
+ 	return (dir == TX) ? RX : TX;
+ }
+ 
+-static const char const *direction_string[] = {
++static const char * const direction_string[] = {
+ 	[TX] = "TX",
+ 	[RX] = "RX"
+ };
+ 
+-static const inline char *dir_str(enum direction dir)
++static inline const char *dir_str(enum direction dir)
+ {
+ 	if (unlikely(dir >= MAX_DIR))
+ 		return "INVALID";
+@@ -160,12 +160,12 @@ static const inline char *dir_str(enum direction dir)
+ 		return direction_string[dir];
+ }
+ 
+-static const char const *udl_string[] = {
++static const char * const udl_string[] = {
+ 	[UL] = "UL",
+ 	[DL] = "DL"
+ };
+ 
+-static const inline char *udl_str(enum direction dir)
++static inline const char *udl_str(enum direction dir)
+ {
+ 	if (unlikely(dir >= ULDL))
+ 		return "INVALID";
+@@ -173,12 +173,12 @@ static const inline char *udl_str(enum direction dir)
+ 		return udl_string[dir];
+ }
+ 
+-static const char const *q_direction_string[] = {
++static const char * const q_direction_string[] = {
+ 	[TX] = "TXQ",
+ 	[RX] = "RXQ"
+ };
+ 
+-static const inline char *q_dir(enum direction dir)
++static inline const char *q_dir(enum direction dir)
+ {
+ 	if (unlikely(dir >= MAX_DIR))
+ 		return "INVALID";
+@@ -186,12 +186,12 @@ static const inline char *q_dir(enum direction dir)
+ 		return q_direction_string[dir];
+ }
+ 
+-static const char const *ipc_direction_string[] = {
++static const char * const ipc_direction_string[] = {
+ 	[TX] = "AP->CP",
+ 	[RX] = "AP<-CP"
+ };
+ 
+-static const inline char *ipc_dir(enum direction dir)
++static inline const char *ipc_dir(enum direction dir)
+ {
+ 	if (unlikely(dir >= MAX_DIR))
+ 		return "INVALID";
+@@ -199,12 +199,12 @@ static const inline char *ipc_dir(enum direction dir)
+ 		return ipc_direction_string[dir];
+ }
+ 
+-static const char const *arrow_direction[] = {
++static const char * const arrow_direction[] = {
+ 	[TX] = "->",
+ 	[RX] = "<-"
+ };
+ 
+-static const inline char *arrow(enum direction dir)
++static inline const char *arrow(enum direction dir)
+ {
+ 	if (unlikely(dir >= MAX_DIR))
+ 		return "><";
+@@ -212,7 +212,7 @@ static const inline char *arrow(enum direction dir)
+ 		return arrow_direction[dir];
+ }
+ 
+-static const char const *modem_state_string[] = {
++static const char * const modem_state_string[] = {
+ 	[STATE_OFFLINE]		= "OFFLINE",
+ 	[STATE_CRASH_RESET]	= "CRASH_RESET",
+ 	[STATE_CRASH_EXIT]	= "CRASH_EXIT",
+@@ -225,12 +225,12 @@ static const char const *modem_state_string[] = {
+ 	[STATE_CRASH_WATCHDOG]	= "WDT_RESET",
+ };
+ 
+-static const inline char *cp_state_str(enum modem_state state)
++static inline const char *cp_state_str(enum modem_state state)
+ {
+ 	return modem_state_string[state];
+ }
+ 
+-static const inline char *mc_state(struct modem_ctl *mc)
++static inline const char *mc_state(struct modem_ctl *mc)
+ {
+ 	return cp_state_str(mc->phone_state);
+ }
+@@ -326,6 +326,9 @@ void log_ipc_pkt(u8 ch, enum ipc_layer layer, enum direction dir,
+ 		 struct sk_buff *skb, u8 *hdr);
+ 
+ /* print buffer as hex string */
++/* most bytes pr_buffer() prints */
++#define PR_BUFFER_MAX 16
++
+ int pr_buffer(const char *tag, const char *data, size_t data_len,
+ 							size_t max_len);
+ 
+diff --git a/drivers/misc/modem_v1/modem_variation.h b/drivers/misc/modem_v1/modem_variation.h
+index 9deebec21..f0dc316f4 100644
+--- a/drivers/misc/modem_v1/modem_variation.h
++++ b/drivers/misc/modem_v1/modem_variation.h
+@@ -37,111 +37,64 @@
+ #define LINK_INIT_CALL(type)	type ## _create_link_device
+ 
+ /**
+- * Add extern declaration of modem & link type
++ * Add extern declaration of modem & link type (all of them, so that the
++ * DUMMY definitions in modem_variation.c have a prototype too)
+  * (CAUTION!!! Every DUMMY function must be declared in modem_variation.c)
+  */
+ 
+ /* modem device support */
+-#ifdef CONFIG_UMTS_MODEM_XMM6260
++DECLARE_MODEM_INIT(dummy);
+ DECLARE_MODEM_INIT(xmm6260);
+-#endif
+ 
+-#ifdef CONFIG_UMTS_MODEM_XMM6262
+ DECLARE_MODEM_INIT(xmm6262);
+-#endif
+ 
+-#ifdef CONFIG_LTE_MODEM_XMM7260
+ DECLARE_MODEM_INIT(xmm7260);
+-#endif
+ 
+-#ifdef CONFIG_CDMA_MODEM_CBP71
+ DECLARE_MODEM_INIT(cbp71);
+-#endif
+ 
+-#ifdef CONFIG_CDMA_MODEM_CBP72
+ DECLARE_MODEM_INIT(cbp72);
+-#endif
+ 
+-#ifdef CONFIG_CDMA_MODEM_CBP82
+ DECLARE_MODEM_INIT(cbp82);
+-#endif
+ 
+-#ifdef CONFIG_LTE_MODEM_CMC220
+ DECLARE_MODEM_INIT(cmc220);
+-#endif
+ 
+-#ifdef CONFIG_LTE_MODEM_CMC221
+ DECLARE_MODEM_INIT(cmc221);
+-#endif
+ 
+-#ifdef CONFIG_UMTS_MODEM_SH222AP
+ DECLARE_MODEM_INIT(sh222ap);
+-#endif
+ 
+-#ifdef CONFIG_UMTS_MODEM_SS310AP
+ DECLARE_MODEM_INIT(ss310ap);
+-#endif
+ 
+-#ifdef CONFIG_UMTS_MODEM_SS222
+ DECLARE_MODEM_INIT(ss222);
+-#endif
+ 
+-#ifdef CONFIG_UMTS_MODEM_SS300
+ DECLARE_MODEM_INIT(ss300);
+-#endif
+ 
+-#ifdef CONFIG_CDMA_MODEM_MDM6600
+ DECLARE_MODEM_INIT(mdm6600);
+-#endif
+ 
+-#ifdef CONFIG_GSM_MODEM_ESC6270
+ DECLARE_MODEM_INIT(esc6270);
+-#endif
+ 
+-#ifdef CONFIG_CDMA_MODEM_QSC6085
+ DECLARE_MODEM_INIT(qsc6085);
+-#endif
+ 
+-#ifdef CONFIG_TDSCDMA_MODEM_SPRD8803
+ DECLARE_MODEM_INIT(sprd8803);
+-#endif
+ 
+ /* link device support */
+-#ifdef CONFIG_LINK_DEVICE_MIPI
++DECLARE_LINK_INIT(undefined);
+ DECLARE_LINK_INIT(mipi);
+-#endif
+ 
+-#ifdef CONFIG_LINK_DEVICE_USB
+ DECLARE_LINK_INIT(usb);
+-#endif
+ 
+-#ifdef CONFIG_LINK_DEVICE_HSIC
+ DECLARE_LINK_INIT(hsic);
+-#endif
+ 
+-#ifdef CONFIG_LINK_DEVICE_DPRAM
+ DECLARE_LINK_INIT(dpram);
+-#endif
+ 
+-#ifdef CONFIG_LINK_DEVICE_PLD
+ DECLARE_LINK_INIT(pld);
+-#endif
+ 
+-#ifdef CONFIG_LINK_DEVICE_C2C
+ DECLARE_LINK_INIT(c2c);
+-#endif
+ 
+-#ifdef CONFIG_LINK_DEVICE_LLI
+ DECLARE_LINK_INIT(lli);
+-#endif
+ 
+-#ifdef CONFIG_LINK_DEVICE_SHMEM
+ DECLARE_LINK_INIT(shmem);
+-#endif
+ 
+-#ifdef CONFIG_LINK_DEVICE_SPI
+ DECLARE_LINK_INIT(spi);
+-#endif
+ 
+ typedef int (*modem_init_call)(struct modem_ctl *, struct modem_data *);
+ typedef struct link_device *(*link_init_call)(struct platform_device *);

@@ -1,0 +1,98 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 14:27:14 +0700
+Subject: [PATCH 66/92] arm64: dts: exynos7570: j4lte: add the Melfas
+ touchscreen
+
+The MMS438 sits on the I2C_TSP bus and speaks the MIP4 protocol of
+melfas_mip4. Its 3.3 V supply is switched by the chip enable GPIO.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 4ae3d36b01e33bdd97d93732e72ed744d0a80347)
+---
+ arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts | 16 ++++++++++++++++
+ .../boot/dts/exynos/exynos7570-pinctrl.dtsi     | 14 ++++++++++++++
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi      | 17 +++++++++++++++++
+ 3 files changed, 47 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index 4dc50f0ac..6e8f4a5c7 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -6,6 +6,7 @@
+  */
+ 
+ /dts-v1/;
++#include <dt-bindings/gpio/gpio.h>
+ #include "exynos7570.dtsi"
+ 
+ / {
+@@ -435,3 +436,18 @@ muic: muic@14 {
+ 		pinctrl-0 = <&muic_irq>;
+ 	};
+ };
++
++&i2c_tsp {
++	status = "okay";
++
++	touchscreen@48 {
++		compatible = "melfas,mip4_ts";
++		reg = <0x48>;
++		interrupt-parent = <&gpc3>;
++		interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
++		/* switches the 3.3 V supply of the controller */
++		ce-gpios = <&gpc2 3 GPIO_ACTIVE_HIGH>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&tsp_irq>;
++	};
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi b/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
+index f056216fb..cdf39a611 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
+@@ -255,3 +255,17 @@ i2c_muic_bus: i2c-muic-bus-pins {
+ 		samsung,pin-pud = <EXYNOS_PIN_PULL_UP>;
+ 	};
+ };
++
++&pinctrl_touch {
++	i2c_tsp_bus: i2c-tsp-bus-pins {
++		samsung,pins = "gpc3-1", "gpc3-0";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_2>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++	};
++
++	tsp_irq: tsp-irq-pins {
++		samsung,pins = "gpc3-2";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_EINT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++	};
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index 4b848cee9..491b7cf2e 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -161,6 +161,23 @@ adc: adc@10550000 {
+ 			#io-channel-cells = <1>;
+ 		};
+ 
++		i2c_tsp: i2c@13840000 {
++			compatible = "samsung,exynos7570-i2c", "samsung,s3c2440-i2c";
++			reg = <0x13840000 0x100>;
++			interrupts = <GIC_SPI 425 IRQ_TYPE_LEVEL_HIGH>;
++
++			pinctrl-names = "default";
++			pinctrl-0 = <&i2c_tsp_bus>;
++
++			clock-names = "i2c";
++			clocks = <&cmu_peri CLK_GOUT_PERI_I2C_TSP_PCLK>;
++
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			status = "disabled";
++		};
++
+ 		i2c_muic: i2c@13880000 {
+ 			compatible = "samsung,exynos7570-i2c", "samsung,s3c2440-i2c";
+ 			reg = <0x13880000 0x100>;

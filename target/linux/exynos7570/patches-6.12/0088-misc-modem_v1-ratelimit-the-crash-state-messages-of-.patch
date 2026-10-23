@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Fri, 23 Oct 2026 23:44:30 +0700
+Subject: [PATCH 88/92] misc: modem_v1: ratelimit the crash state messages of
+ misc_poll
+
+A daemon that keeps polling a crashed CP's FMT device logged one line
+per poll (47k lines in seconds), pushing the crash cause out of the
+kernel log.
+
+(cherry picked from commit d26c94e7f63870ff17c09ed8a9fc764f59e92709)
+---
+ drivers/misc/modem_v1/modem_io_device.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/misc/modem_v1/modem_io_device.c b/drivers/misc/modem_v1/modem_io_device.c
+index eaf0083f8..6a8a1708e 100644
+--- a/drivers/misc/modem_v1/modem_io_device.c
++++ b/drivers/misc/modem_v1/modem_io_device.c
+@@ -563,11 +563,11 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
+ 	case STATE_CRASH_WATCHDOG:
+ 		/* report crash only if iod is fmt/boot device */
+ 		if (iod->format == IPC_FMT) {
+-			mif_err("%s: %s.state == %s\n", iod->name, mc->name,
++			mif_err_limited("%s: %s.state == %s\n", iod->name, mc->name,
+ 				mc_state(mc));
+ 			return POLLHUP;
+ 		} else if (iod->format == IPC_BOOT || sipc5_boot_ch(iod->id)) {
+-			mif_err("%s: %s.state == %s\n", iod->name, mc->name,
++			mif_err_limited("%s: %s.state == %s\n", iod->name, mc->name,
+ 				mc_state(mc));
+ 			return POLLHUP;
+ 		} else if (iod->format == IPC_DUMP || sipc5_dump_ch(iod->id)) {
+@@ -576,7 +576,7 @@ static unsigned int misc_poll(struct file *filp, struct poll_table_struct *wait)
+ 			else
+ 				return 0;
+ 		} else {
+-			mif_err("%s: %s.state == %s\n", iod->name, mc->name,
++			mif_err_limited("%s: %s.state == %s\n", iod->name, mc->name,
+ 				mc_state(mc));
+ 
+ 			/* give delay to prevent infinite sys_poll call from

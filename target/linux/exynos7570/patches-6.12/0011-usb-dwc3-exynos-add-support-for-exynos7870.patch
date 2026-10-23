@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Sat, 1 Mar 2025 01:10:34 +0530
+Subject: [PATCH 11/92] usb: dwc3: exynos: add support for exynos7870
+
+Exynos7870 devices have a DWC3 compatible USB 2.0 controller.
+Add support in the driver by:
+ - Adding its own compatible string, "samsung,exynos7870-dwusb3".
+ - Adding three USBDRD clocks named "bus_early", "ref", and "ctrl", to
+   be controlled by the driver.
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Acked-by: Thinh Nguyen <Thinh.Nguyen@synopsys.com>
+Reviewed-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+Link: https://lore.kernel.org/r/20250301-exynos7870-usb-v3-2-f01697165d19@disroot.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+(cherry picked from commit 811d22141369d572319ee3350ff8b40fa05850f8):
+---
+ drivers/usb/dwc3/dwc3-exynos.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/usb/dwc3/dwc3-exynos.c b/drivers/usb/dwc3/dwc3-exynos.c
+index 9a6e988d1..daa68f8cd 100644
+--- a/drivers/usb/dwc3/dwc3-exynos.c
++++ b/drivers/usb/dwc3/dwc3-exynos.c
+@@ -163,6 +163,12 @@ static const struct dwc3_exynos_driverdata exynos7_drvdata = {
+ 	.suspend_clk_idx = 1,
+ };
+ 
++static const struct dwc3_exynos_driverdata exynos7870_drvdata = {
++	.clk_names = { "bus_early", "ref", "ctrl" },
++	.num_clks = 3,
++	.suspend_clk_idx = -1,
++};
++
+ static const struct dwc3_exynos_driverdata exynos850_drvdata = {
+ 	.clk_names = { "bus_early", "ref" },
+ 	.num_clks = 2,
+@@ -185,6 +191,9 @@ static const struct of_device_id exynos_dwc3_match[] = {
+ 	}, {
+ 		.compatible = "samsung,exynos7-dwusb3",
+ 		.data = &exynos7_drvdata,
++	}, {
++		.compatible = "samsung,exynos7870-dwusb3",
++		.data = &exynos7870_drvdata,
+ 	}, {
+ 		.compatible = "samsung,exynos850-dwusb3",
+ 		.data = &exynos850_drvdata,

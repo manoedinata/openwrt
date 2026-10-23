@@ -1,0 +1,37 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 14:51:15 +0700
+Subject: [PATCH 68/92] Input: melfas_mip4 - use the resolution of one axis for
+ the other
+
+Some firmwares report the resolution of one axis only (the MMS438 of the
+Galaxy J4 reports 10 for X and nothing for Y), and libinput refuses such a
+device as a kernel bug, so no compositor gets touch events. The sensor
+cells are square, so use the one value for both.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 0dcca69fe6ea0f14e153e65b0a133e360af0d7df)
+---
+ drivers/input/touchscreen/melfas_mip4.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/drivers/input/touchscreen/melfas_mip4.c b/drivers/input/touchscreen/melfas_mip4.c
+index a6946e3d8..878fc9d41 100644
+--- a/drivers/input/touchscreen/melfas_mip4.c
++++ b/drivers/input/touchscreen/melfas_mip4.c
+@@ -333,6 +333,15 @@ static int mip4_query_device(struct mip4_ts *ts)
+ 
+ 		ts->ppm_x = buf[12];
+ 		ts->ppm_y = buf[13];
++
++		/*
++		 * Some firmwares report the resolution of one axis only, which
++		 * libinput rejects as a kernel bug. The sensor has square cells.
++		 */
++		if (!ts->ppm_x)
++			ts->ppm_x = ts->ppm_y;
++		if (!ts->ppm_y)
++			ts->ppm_y = ts->ppm_x;
+ 		dev_dbg(&ts->client->dev, "ppm_x: %d, ppm_y: %d\n",
+ 			ts->ppm_x, ts->ppm_y);
+ 

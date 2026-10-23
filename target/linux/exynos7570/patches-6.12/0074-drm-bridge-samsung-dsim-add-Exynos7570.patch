@@ -1,0 +1,177 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 17:30:59 +0700
+Subject: [PATCH 74/92] drm/bridge: samsung-dsim: add Exynos7570
+
+The Exynos7570 DSIM is the 7870 generation with two differences, so it gets
+its own type sharing the 7870 driver data:
+
+ - the horizontal porches are programmed in pixels (not converted to byte
+   clock cycles), with CMD_ALLOW 4 and a stable VFP of 2, as the bootloader
+   and the vendor driver do. Converted ones come out as zero when the link
+   was not initialised by this driver and the picture is shifted sideways.
+ - the bootloader leaves the DSIM running its video stream for the splash
+   screen. The first initialisation keeps that link instead of resetting
+   it, as the vendor driver does ("LCD ON UBOOT"), because the panel
+   cannot be sent commands without a pixel stream.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 4d9517991e269f645e7106d20c4b8a0cb867b2ef)
+---
+ .../display/bridge/samsung,mipi-dsim.yaml     |  5 +-
+ drivers/gpu/drm/bridge/samsung-dsim.c         | 52 +++++++++++++++----
+ drivers/gpu/drm/exynos/exynos_drm_dsi.c       |  9 ++++
+ include/drm/bridge/samsung-dsim.h             |  2 +
+ 4 files changed, 57 insertions(+), 11 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/display/bridge/samsung,mipi-dsim.yaml b/Documentation/devicetree/bindings/display/bridge/samsung,mipi-dsim.yaml
+index dbfca5465..14ea4cc26 100644
+--- a/Documentation/devicetree/bindings/display/bridge/samsung,mipi-dsim.yaml
++++ b/Documentation/devicetree/bindings/display/bridge/samsung,mipi-dsim.yaml
+@@ -24,6 +24,7 @@ properties:
+           - samsung,exynos5410-mipi-dsi
+           - samsung,exynos5422-mipi-dsi
+           - samsung,exynos5433-mipi-dsi
++          - samsung,exynos7570-mipi-dsi
+           - samsung,exynos7870-mipi-dsi
+           - fsl,imx8mm-mipi-dsim
+           - fsl,imx8mp-mipi-dsim
+@@ -147,7 +148,9 @@ allOf:
+       properties:
+         compatible:
+           contains:
+-            const: samsung,exynos7870-mipi-dsi
++            enum:
++              - samsung,exynos7570-mipi-dsi
++              - samsung,exynos7870-mipi-dsi
+ 
+     then:
+       properties:
+diff --git a/drivers/gpu/drm/bridge/samsung-dsim.c b/drivers/gpu/drm/bridge/samsung-dsim.c
+index 75b77ddb9..b4a300531 100644
+--- a/drivers/gpu/drm/bridge/samsung-dsim.c
++++ b/drivers/gpu/drm/bridge/samsung-dsim.c
+@@ -684,6 +684,7 @@ samsung_dsim_types[DSIM_TYPE_COUNT] = {
+ 	[DSIM_TYPE_EXYNOS5422] = &exynos5422_dsi_driver_data,
+ 	[DSIM_TYPE_EXYNOS5433] = &exynos5433_dsi_driver_data,
+ 	[DSIM_TYPE_EXYNOS7870] = &exynos7870_dsi_driver_data,
++	[DSIM_TYPE_EXYNOS7570] = &exynos7870_dsi_driver_data,
+ 	[DSIM_TYPE_IMX8MM] = &imx8mm_dsi_driver_data,
+ 	[DSIM_TYPE_IMX8MP] = &imx8mm_dsi_driver_data,
+ };
+@@ -1174,20 +1175,36 @@ static void samsung_dsim_set_display_mode(struct samsung_dsim *dsi)
+ 		u64 byte_clk = dsi->hs_clock / 8;
+ 		u64 pix_clk = m->clock * 1000;
+ 
+-		int hfp = DIV64_U64_ROUND_UP((m->hsync_start - m->hdisplay) * byte_clk, pix_clk);
+-		int hbp = DIV64_U64_ROUND_UP((m->htotal - m->hsync_end) * byte_clk, pix_clk);
+-		int hsa = DIV64_U64_ROUND_UP((m->hsync_end - m->hsync_start) * byte_clk, pix_clk);
+-
+-		/* remove packet overhead when possible */
+-		hfp = max(hfp - 6, 0);
+-		hbp = max(hbp - 6, 0);
+-		hsa = max(hsa - 6, 0);
++		u32 cmd_allow = 0xf, stable_vfp = m->vsync_start - m->vdisplay;
++		int hfp, hbp, hsa;
++
++		if (dsi->plat_data->hw_type == DSIM_TYPE_EXYNOS7570) {
++			/*
++			 * The Exynos7570 DSIM wants the horizontal porches in
++			 * pixels and a short stable VFP, which is how the
++			 * bootloader and the vendor driver program them.
++			 */
++			hfp = m->hsync_start - m->hdisplay;
++			hbp = m->htotal - m->hsync_end;
++			hsa = m->hsync_end - m->hsync_start;
++			cmd_allow = 4;
++			stable_vfp = 2;
++		} else {
++			hfp = DIV64_U64_ROUND_UP((m->hsync_start - m->hdisplay) * byte_clk, pix_clk);
++			hbp = DIV64_U64_ROUND_UP((m->htotal - m->hsync_end) * byte_clk, pix_clk);
++			hsa = DIV64_U64_ROUND_UP((m->hsync_end - m->hsync_start) * byte_clk, pix_clk);
++
++			/* remove packet overhead when possible */
++			hfp = max(hfp - 6, 0);
++			hbp = max(hbp - 6, 0);
++			hsa = max(hsa - 6, 0);
++		}
+ 
+ 		dev_dbg(dsi->dev, "calculated hfp: %u, hbp: %u, hsa: %u",
+ 			hfp, hbp, hsa);
+ 
+-		reg = DSIM_CMD_ALLOW(0xf)
+-			| DSIM_STABLE_VFP(m->vsync_start - m->vdisplay)
++		reg = DSIM_CMD_ALLOW(cmd_allow)
++			| DSIM_STABLE_VFP(stable_vfp)
+ 			| DSIM_MAIN_VBP(m->vtotal - m->vsync_end);
+ 		samsung_dsim_write(dsi, DSIM_MVPORCH_REG, reg);
+ 
+@@ -1634,6 +1651,21 @@ static int samsung_dsim_init(struct samsung_dsim *dsi)
+ 	if (dsi->state & DSIM_STATE_INITIALIZED)
+ 		return 0;
+ 
++	/*
++	 * The Exynos7570 bootloader leaves the DSIM running its video stream
++	 * for the splash screen. A reset would stop it and the panel could not
++	 * be sent commands until a pixel stream is back, so keep the link as it
++	 * is the first time, as the vendor driver does ("LCD ON UBOOT").
++	 */
++	if (dsi->plat_data->hw_type == DSIM_TYPE_EXYNOS7570 && !dsi->adopted &&
++	    (samsung_dsim_read(dsi, DSIM_CLKCTRL_REG) & BIT(driver_data->tx_req_hsclk_bit))) {
++		dev_info(dsi->dev, "keeping the link the bootloader set up\n");
++		dsi->adopted = true;
++		samsung_dsim_enable_irq(dsi);
++		dsi->state |= DSIM_STATE_INITIALIZED;
++		return 0;
++	}
++
+ 	samsung_dsim_reset(dsi);
+ 	samsung_dsim_enable_irq(dsi);
+ 
+diff --git a/drivers/gpu/drm/exynos/exynos_drm_dsi.c b/drivers/gpu/drm/exynos/exynos_drm_dsi.c
+index 872cf9bf0..d3c1da25c 100644
+--- a/drivers/gpu/drm/exynos/exynos_drm_dsi.c
++++ b/drivers/gpu/drm/exynos/exynos_drm_dsi.c
+@@ -159,6 +159,11 @@ static const struct samsung_dsim_plat_data exynos7870_dsi_pdata = {
+ 	.host_ops = &exynos_dsi_exynos_host_ops,
+ };
+ 
++static const struct samsung_dsim_plat_data exynos7570_dsi_pdata = {
++	.hw_type = DSIM_TYPE_EXYNOS7570,
++	.host_ops = &exynos_dsi_exynos_host_ops,
++};
++
+ static const struct of_device_id exynos_dsi_of_match[] = {
+ 	{
+ 		.compatible = "samsung,exynos3250-mipi-dsi",
+@@ -184,6 +189,10 @@ static const struct of_device_id exynos_dsi_of_match[] = {
+ 		.compatible = "samsung,exynos7870-mipi-dsi",
+ 		.data = &exynos7870_dsi_pdata,
+ 	},
++	{
++		.compatible = "samsung,exynos7570-mipi-dsi",
++		.data = &exynos7570_dsi_pdata,
++	},
+ 	{ /* sentinel. */ }
+ };
+ MODULE_DEVICE_TABLE(of, exynos_dsi_of_match);
+diff --git a/include/drm/bridge/samsung-dsim.h b/include/drm/bridge/samsung-dsim.h
+index 31d7ed589..eaf8463cd 100644
+--- a/include/drm/bridge/samsung-dsim.h
++++ b/include/drm/bridge/samsung-dsim.h
+@@ -30,6 +30,7 @@ enum samsung_dsim_type {
+ 	DSIM_TYPE_EXYNOS5422,
+ 	DSIM_TYPE_EXYNOS5433,
+ 	DSIM_TYPE_EXYNOS7870,
++	DSIM_TYPE_EXYNOS7570,
+ 	DSIM_TYPE_IMX8MM,
+ 	DSIM_TYPE_IMX8MP,
+ 	DSIM_TYPE_COUNT,
+@@ -109,6 +110,7 @@ struct samsung_dsim {
+ 	struct clk *pll_clk;
+ 	struct regulator_bulk_data supplies[2];
+ 	int irq;
++	bool adopted;
+ 	struct gpio_desc *te_gpio;
+ 
+ 	u32 pll_clk_rate;

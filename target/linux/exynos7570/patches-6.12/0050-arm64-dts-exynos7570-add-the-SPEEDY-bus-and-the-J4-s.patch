@@ -1,0 +1,273 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 08:58:34 +0700
+Subject: [PATCH 50/92] arm64: dts: exynos7570: add the SPEEDY bus and the J4's
+ S2MPU06 PMIC
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit 395d9f881262069c6614bcd5276c3e7657d3c698)
+---
+ .../boot/dts/exynos/exynos7570-j4lte.dts      | 197 +++++++++++++++++-
+ .../boot/dts/exynos/exynos7570-pinctrl.dtsi   |   8 +
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi    |  20 ++
+ 3 files changed, 224 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index e65c6f7ee..c719ffcaf 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -18,7 +18,7 @@ chosen {
+ 		#size-cells = <1>;
+ 		ranges;
+ 
+-		bootargs = "console=tty0 ignore_loglevel clk_ignore_unused j4.autoreboot=45";
++		bootargs = "console=tty0 ignore_loglevel clk_ignore_unused regulator_ignore_unused j4.autoreboot=45";
+ 
+ 		/* Set up by the bootloader (uniLoader), scanned out by DECON */
+ 		framebuffer0: framebuffer@67000000 {
+@@ -135,3 +135,198 @@ &usbdrd {
+ &usbdrd_dwc3 {
+ 	dr_mode = "peripheral";
+ };
++
++&speedy {
++	status = "okay";
++
++	pmic@0 {
++		compatible = "samsung,s2mpu06-pmic";
++		reg = <0x0>;
++
++		regulators {
++			buck1_reg: BUCK1 {
++				regulator-name = "BUCK1";
++				regulator-min-microvolt = <500000>;
++				regulator-max-microvolt = <1300000>;
++				regulator-always-on;
++				regulator-boot-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			buck2_reg: BUCK2 {
++				regulator-name = "BUCK2";
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <2800000>;
++				regulator-always-on;
++				regulator-boot-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			buck3_reg: BUCK3 {
++				regulator-name = "BUCK3";
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <2800000>;
++				regulator-always-on;
++				regulator-boot-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo1_reg: LDO1 {
++				regulator-name = "vdd_ldo1";
++				regulator-min-microvolt = <500000>;
++				regulator-max-microvolt = <1300000>;
++				regulator-always-on;
++				regulator-boot-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo2_reg: LDO2 {
++				regulator-name = "vdd_ldo2";
++				regulator-min-microvolt = <1500000>;
++				regulator-max-microvolt = <2000000>;
++				regulator-boot-on;
++				regulator-always-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo3_reg: LDO3 {
++				regulator-name = "vdd_ldo3";
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <1500000>;
++				regulator-boot-on;
++				regulator-always-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo4_reg: LDO4 {
++				regulator-name = "vqmmc";
++				regulator-min-microvolt = <1700000>;
++				regulator-max-microvolt = <3350000>;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo5_reg: LDO5 {
++				regulator-name = "vdd_ldo5";
++				regulator-min-microvolt = <1700000>;
++				regulator-max-microvolt = <3350000>;
++				regulator-boot-on;
++				regulator-always-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo6_reg: LDO6 {
++				regulator-name = "vdd_ldo6";
++				regulator-min-microvolt = <500000>;
++				regulator-max-microvolt = <1300000>;
++				regulator-boot-on;
++				regulator-always-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo7_reg: LDO7 {
++				regulator-name = "vdd_ldo7";
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <1300000>;
++				regulator-boot-on;
++				regulator-always-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo8_reg: LDO8 {
++				regulator-name = "vdd_ldo8";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <3375000>;
++				regulator-boot-on;
++				regulator-always-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo13_reg: LDO13 {
++				regulator-name = "vdd_ldo13";
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <2000000>;
++				regulator-ramp-delay = <12000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++
++			ldo14_reg: LDO14 {
++				regulator-name = "vemmc";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <3375000>;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo15_reg: LDO15 {
++				regulator-name = "vqemmc";
++				regulator-min-microvolt = <800000>;
++				regulator-max-microvolt = <2000000>;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo16_reg: LDO16 {
++				regulator-name = "VDD_MOTOR_3P3";
++				regulator-min-microvolt = <3100000>;
++				regulator-max-microvolt = <3100000>;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo17_reg: LDO17 {
++				regulator-name = "VDD18_CAM_SENSOR_IO";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo18_reg: LDO18 {
++				regulator-name = "VDD28_CAM_AF";
++				regulator-min-microvolt = <2800000>;
++				regulator-max-microvolt = <2800000>;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo19_reg: LDO19 {
++				regulator-name = "vtouch_2.2v";
++				regulator-min-microvolt = <2200000>;
++				regulator-max-microvolt = <2200000>;
++				regulator-boot-on;
++			};
++
++			ldo20_reg: LDO20 {
++				regulator-name = "LCD_1P8";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++				regulator-boot-on;
++			};
++
++			ldo21_reg: LDO21 {
++				regulator-name = "vdd_ldo21";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <3375000>;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo22_reg: LDO22 {
++				regulator-name = "vdd_ldo22";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <3375000>;
++				regulator-always-on;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo23_reg: LDO23 {
++				regulator-name = "VDD23_CAM_CORE_1P2";
++				regulator-min-microvolt = <1200000>;
++				regulator-max-microvolt = <1200000>;
++				regulator-ramp-delay = <12000>;
++			};
++
++			ldo24_reg: LDO24 {
++				regulator-name = "AVDD24_CAM_2P8";
++				regulator-min-microvolt = <2800000>;
++				regulator-max-microvolt = <2800000>;
++				regulator-ramp-delay = <12000>;
++			};
++		};
++	};
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi b/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
+index d52dad3d2..18e5d9a59 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570-pinctrl.dtsi
+@@ -225,3 +225,11 @@ gpd2: gpd2-gpio-bank {
+ 		#interrupt-cells = <2>;
+ 	};
+ };
++
++&pinctrl_mif {
++	speedy_bus: speedy-bus-pins {
++		samsung,pins = "gpm0-0";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_2>;
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++	};
++};
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index b9c3cd6f0..fab7e1d59 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -129,6 +129,26 @@ cmu_mif: clock-controller@10460000 {
+ 			clocks = <&oscclk>;
+ 		};
+ 
++		speedy: speedy@10510000 {
++			compatible = "samsung,exynos7570-speedy";
++			reg = <0x10510000 0x2000>;
++			interrupts = <GIC_SPI 372 IRQ_TYPE_LEVEL_HIGH>;
++
++			pinctrl-names = "default";
++			pinctrl-0 = <&speedy_bus>;
++
++			clock-names = "pclk", "clk";
++			clocks = <&cmu_mif CLK_GOUT_MIF_SPEEDY_PCLK>,
++				 <&cmu_mif CLK_GOUT_MIF_SPEEDY_CLK>;
++
++			samsung,always-interrupt-high;
++
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			status = "disabled";
++		};
++
+ 		pinctrl_mif: pinctrl@10530000 {
+ 			compatible = "samsung,exynos7570-pinctrl";
+ 			reg = <0x10530000 0x1000>;

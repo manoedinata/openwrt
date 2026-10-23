@@ -1,0 +1,90 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Thu, 12 Jun 2025 20:39:29 +0530
+Subject: [PATCH 18/92] dt-bindings: phy: samsung,mipi-video-phy: document
+ exynos7870 MIPI phy
+
+The Exynos7870 MIPI PHY device contains one DSIM PHY block and three
+CSIS PHY blocks. It also requires two sysregs, one for display, and the
+other for cameras. Document this device.
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Acked-by: Conor Dooley <conor.dooley@microchip.com>
+Link: https://lore.kernel.org/r/20250612-exynos7870-mipi-phy-v1-1-3fff0b62d9d3@disroot.org
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+(cherry picked from commit 2ac5840594b2cc2b41116f708241a2a61d9108bd):
+---
+ .../bindings/phy/samsung,mipi-video-phy.yaml  | 29 ++++++++++++++++---
+ 1 file changed, 25 insertions(+), 4 deletions(-)
+
+diff --git a/Documentation/devicetree/bindings/phy/samsung,mipi-video-phy.yaml b/Documentation/devicetree/bindings/phy/samsung,mipi-video-phy.yaml
+index b2250e4a6..16967ef8e 100644
+--- a/Documentation/devicetree/bindings/phy/samsung,mipi-video-phy.yaml
++++ b/Documentation/devicetree/bindings/phy/samsung,mipi-video-phy.yaml
+@@ -29,6 +29,7 @@ properties:
+       - samsung,s5pv210-mipi-video-phy
+       - samsung,exynos5420-mipi-video-phy
+       - samsung,exynos5433-mipi-video-phy
++      - samsung,exynos7870-mipi-video-phy
+ 
+   "#phy-cells":
+     const: 1
+@@ -46,19 +47,20 @@ properties:
+     deprecated: true
+     description:
+       Phandle to PMU system controller interface, valid for
+-      samsung,exynos5433-mipi-video-phy (if not a child of PMU).
++      samsung,exynos5433-mipi-video-phy and samsung,exynos7870-mipi-video-phy
++      (if not a child of PMU).
+ 
+   samsung,disp-sysreg:
+     $ref: /schemas/types.yaml#/definitions/phandle
+     description:
+       Phandle to DISP system controller interface, valid for
+-      samsung,exynos5433-mipi-video-phy.
++      samsung,exynos5433-mipi-video-phy and samsung,exynos7870-mipi-video-phy.
+ 
+   samsung,cam0-sysreg:
+     $ref: /schemas/types.yaml#/definitions/phandle
+     description:
+       Phandle to CAM0 system controller interface, valid for
+-      samsung,exynos5433-mipi-video-phy.
++      samsung,exynos5433-mipi-video-phy and samsung,exynos7870-mipi-video-phy.
+ 
+   samsung,cam1-sysreg:
+     $ref: /schemas/types.yaml#/definitions/phandle
+@@ -84,7 +86,13 @@ allOf:
+         samsung,disp-sysreg: false
+         samsung,cam0-sysreg: false
+         samsung,cam1-sysreg: false
+-    else:
++
++  - if:
++      properties:
++        compatible:
++          contains:
++            const: samsung,exynos5433-mipi-video-phy
++    then:
+       properties:
+         syscon: false
+       required:
+@@ -92,6 +100,19 @@ allOf:
+         - samsung,cam0-sysreg
+         - samsung,cam1-sysreg
+ 
++  - if:
++      properties:
++        compatible:
++          contains:
++            const: samsung,exynos7870-mipi-video-phy
++    then:
++      properties:
++        syscon: false
++        samsung,cam1-sysreg: false
++      required:
++        - samsung,disp-sysreg
++        - samsung,cam0-sysreg
++
+ additionalProperties: false
+ 
+ examples:

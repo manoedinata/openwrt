@@ -1,0 +1,67 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 18 Oct 2026 07:30:16 +0700
+Subject: [PATCH 40/92] arm64: dts: exynos7570: add chipid compatible, move
+ ramoops below S-BOOT scratch
+
+Use the SoC specific chipid compatible.
+
+The bootloader clears 0x7e280000-0x7e2fffff on every boot, which destroyed the
+tail of the 2 MiB ramoops region: the pmsg zone, and the ECC parity stored at
+the end of each zone, which made the console zone unreadable with ECC on.
+Shrink ramoops to 1.5 MiB and keep the cleared area reserved.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit d49b31d5324baf2932063da961a766b1e28c5e5f)
+---
+ arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts | 13 +++++++++++--
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi      |  3 ++-
+ 2 files changed, 13 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index 843e0e39a..4b82d4871 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -42,10 +42,14 @@ reserved-memory {
+ 		#size-cells = <1>;
+ 		ranges;
+ 
+-		/* Survives a warm reset, see mainline-tools/ramretain */
++		/*
++		 * Survives a warm reset. S-BOOT clears 0x7e280000-0x7e2fffff at
++		 * every boot, so the zones (and their ECC parity at the zone
++		 * ends) have to stay below it.
++		 */
+ 		ramoops@7e100000 {
+ 			compatible = "ramoops";
+-			reg = <0x0 0x7e100000 0x200000>;
++			reg = <0x0 0x7e100000 0x180000>;
+ 			record-size = <0x20000>;
+ 			console-size = <0x100000>;
+ 			pmsg-size = <0x20000>;
+@@ -53,6 +57,11 @@ ramoops@7e100000 {
+ 			no-map;
+ 		};
+ 
++		bootloader-scratch@7e280000 {
++			reg = <0x0 0x7e280000 0x80000>;
++			no-map;
++		};
++
+ 		framebuffer@67000000 {
+ 			reg = <0x0 0x67000000 (720 * 1280 * 4)>;
+ 			no-map;
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index c2cb68016..73dc4c40e 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -95,7 +95,8 @@ soc: soc@0 {
+ 		#size-cells = <1>;
+ 
+ 		chipid@10100000 {
+-			compatible = "samsung,exynos4210-chipid";
++			compatible = "samsung,exynos7570-chipid",
++				     "samsung,exynos4210-chipid";
+ 			reg = <0x10100000 0x100>;
+ 		};
+ 

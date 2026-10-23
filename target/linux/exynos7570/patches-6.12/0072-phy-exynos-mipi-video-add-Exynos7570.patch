@@ -1,0 +1,110 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 20 Oct 2026 17:30:48 +0700
+Subject: [PATCH 72/92] phy: exynos-mipi-video: add Exynos7570
+
+The Exynos7570 has the PMU and display SYSREG layout of the Exynos7870 but
+no camera SYSREG phandle, so the 7870 descriptor, which looks that phandle
+up, fails with -ENODEV without any message and the DSIM never finds its
+PHY. Give the 7570 its own descriptor with the DSIM0 PHY only.
+
+Allow the PHY as a child of the 7570 PMU and document the display SYSREG.
+
+Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
+(cherry picked from commit c4d5f11b5d0c9ea65fc556d0e2efa93239ded008)
+---
+ .../bindings/phy/samsung,mipi-video-phy.yaml  |  1 +
+ .../bindings/soc/samsung/exynos-pmu.yaml      |  1 +
+ .../soc/samsung/samsung,exynos-sysreg.yaml    |  1 +
+ drivers/phy/samsung/phy-exynos-mipi-video.c   | 35 +++++++++++++++++++
+ 4 files changed, 38 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/phy/samsung,mipi-video-phy.yaml b/Documentation/devicetree/bindings/phy/samsung,mipi-video-phy.yaml
+index 16967ef8e..a9af19bef 100644
+--- a/Documentation/devicetree/bindings/phy/samsung,mipi-video-phy.yaml
++++ b/Documentation/devicetree/bindings/phy/samsung,mipi-video-phy.yaml
+@@ -29,6 +29,7 @@ properties:
+       - samsung,s5pv210-mipi-video-phy
+       - samsung,exynos5420-mipi-video-phy
+       - samsung,exynos5433-mipi-video-phy
++      - samsung,exynos7570-mipi-video-phy
+       - samsung,exynos7870-mipi-video-phy
+ 
+   "#phy-cells":
+diff --git a/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml b/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
+index c28585c0d..2f9986e87 100644
+--- a/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
++++ b/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
+@@ -164,6 +164,7 @@ allOf:
+               - samsung,exynos5250-pmu
+               - samsung,exynos5420-pmu
+               - samsung,exynos5433-pmu
++              - samsung,exynos7570-pmu
+               - samsung,exynos7870-pmu
+     then:
+       properties:
+diff --git a/Documentation/devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml b/Documentation/devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml
+index 3ca220582..bcb2f35cb 100644
+--- a/Documentation/devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml
++++ b/Documentation/devicetree/bindings/soc/samsung/samsung,exynos-sysreg.yaml
+@@ -21,6 +21,7 @@ properties:
+               - samsung,exynos3-sysreg
+               - samsung,exynos4-sysreg
+               - samsung,exynos5-sysreg
++              - samsung,exynos7570-disp-sysreg
+               - samsung,exynosautov920-peric0-sysreg
+               - samsung,exynosautov920-peric1-sysreg
+               - tesla,fsd-cam-sysreg
+diff --git a/drivers/phy/samsung/phy-exynos-mipi-video.c b/drivers/phy/samsung/phy-exynos-mipi-video.c
+index be925508e..e368a8150 100644
+--- a/drivers/phy/samsung/phy-exynos-mipi-video.c
++++ b/drivers/phy/samsung/phy-exynos-mipi-video.c
+@@ -213,6 +213,38 @@ static const struct mipi_phy_device_desc exynos5433_mipi_phy = {
+ 	},
+ };
+ 
++/*
++ * Exynos7570: same PMU and display SYSREG layout as the Exynos7870, but no
++ * camera SYSREG phandle in the DT. Only the DSIM0 PHY is usable; the CSIS0
++ * slot is kept so the DSIM0 index stays 1 as on the Exynos7870.
++ */
++static const struct mipi_phy_device_desc exynos7570_mipi_phy = {
++	.num_regmaps = 2,
++	.regmap_names = {
++		"samsung,pmu-syscon",
++		"samsung,disp-sysreg",
++	},
++	.num_phys = 2,
++	.phys = {
++		{
++			/* EXYNOS_MIPI_PHY_ID_CSIS0, unused */
++			.coupled_phy_id = EXYNOS_MIPI_PHY_ID_DSIM0,
++			.enable_val = EXYNOS4_PHY_ENABLE,
++			.enable_reg = EXYNOS7870_MIPI_PHY_CONTROL0,
++			.enable_map = EXYNOS_MIPI_REGMAP_PMU,
++		}, {
++			/* EXYNOS_MIPI_PHY_ID_DSIM0 */
++			.coupled_phy_id = EXYNOS_MIPI_PHY_ID_CSIS0,
++			.enable_val = EXYNOS4_PHY_ENABLE,
++			.enable_reg = EXYNOS7870_MIPI_PHY_CONTROL0,
++			.enable_map = EXYNOS_MIPI_REGMAP_PMU,
++			.resetn_val = BIT(0),
++			.resetn_reg = 0,
++			.resetn_map = EXYNOS_MIPI_REGMAP_DISP,
++		},
++	},
++};
++
+ static const struct mipi_phy_device_desc exynos7870_mipi_phy = {
+ 	.num_regmaps = 3,
+ 	.regmap_names = {
+@@ -403,6 +435,9 @@ static const struct of_device_id exynos_mipi_video_phy_of_match[] = {
+ 	}, {
+ 		.compatible = "samsung,exynos7870-mipi-video-phy",
+ 		.data = &exynos7870_mipi_phy,
++	}, {
++		.compatible = "samsung,exynos7570-mipi-video-phy",
++		.data = &exynos7570_mipi_phy,
+ 	},
+ 	{ /* sentinel */ },
+ };

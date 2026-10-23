@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Fri, 31 Oct 2025 00:50:15 +0530
+Subject: [PATCH 34/92] dt-bindings: soc: samsung: exynos-pmu: allow mipi-phy
+ subnode for Exynos7870 PMU
+
+Exynos7870 PMU is already documented in schema. Add Exynos7870's PMU
+compatible to the list of nodes which allow a MIPI PHY driver.
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Acked-by: Rob Herring (Arm) <robh@kernel.org>
+Link: https://patch.msgid.link/20251031-exynos7870-drm-dts-v4-1-c1f77fb16b87@disroot.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+(cherry picked from commit 81280d39a2f9e7dc12056db889da52cce067b1b6):
+---
+ Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml b/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
+index bb911736f..0927b07af 100644
+--- a/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
++++ b/Documentation/devicetree/bindings/soc/samsung/exynos-pmu.yaml
+@@ -163,6 +163,7 @@ allOf:
+               - samsung,exynos5250-pmu
+               - samsung,exynos5420-pmu
+               - samsung,exynos5433-pmu
++              - samsung,exynos7870-pmu
+     then:
+       properties:
+         mipi-phy: true

@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Kaustabh Chakraborty <kauschluss@disroot.org>
+Date: Sat, 1 Mar 2025 01:05:17 +0530
+Subject: [PATCH 06/92] dt-bindings: pinctrl: samsung: add exynos7870-pinctrl
+ compatible
+
+Document a dedicated compatible string for Exynos7870's pin controllers,
+having 8 GPIO pin banks.
+
+Signed-off-by: Kaustabh Chakraborty <kauschluss@disroot.org>
+Link: https://lore.kernel.org/r/20250301-exynos7870-pinctrl-v3-1-ba1da9d3cd2f@disroot.org
+Signed-off-by: Krzysztof Kozlowski <krzysztof.kozlowski@linaro.org>
+(cherry picked from commit 129bdbd05650f4c11fb8995f8b6e63589ce4cb33):
+---
+ Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml b/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml
+index 242dd13c2..0c239b5a2 100644
+--- a/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml
++++ b/Documentation/devicetree/bindings/pinctrl/samsung,pinctrl.yaml
+@@ -51,6 +51,7 @@ properties:
+       - samsung,exynos5420-pinctrl
+       - samsung,exynos5433-pinctrl
+       - samsung,exynos7-pinctrl
++      - samsung,exynos7870-pinctrl
+       - samsung,exynos7885-pinctrl
+       - samsung,exynos850-pinctrl
+       - samsung,exynosautov9-pinctrl
