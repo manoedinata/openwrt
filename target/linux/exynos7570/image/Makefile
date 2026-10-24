@@ -20,7 +20,8 @@ define Device/samsung_j4lte
   SOC := exynos7570
   DEVICE_DTS := exynos7570-j4lte
   # mobile data (feed j4: samsungipcd, ModemManager with its plugin)
-  DEVICE_PACKAGES := samsungipcd modemmanager luci-proto-modemmanager
+  DEVICE_PACKAGES := samsungipcd modemmanager luci-proto-modemmanager \
+	luci-theme-material
 endef
 TARGET_DEVICES += samsung_j4lte
 
