@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sat, 1 Mar 2025 01:05:18 +0530
-Subject: [PATCH 07/92] dt-bindings: pinctrl: samsung: add
+Subject: [PATCH 07/97] dt-bindings: pinctrl: samsung: add
  exynos7870-wakeup-eint compatible
 
 Exynos7870's wakeup pin controller is entirely register-compatible with

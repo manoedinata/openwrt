@@ -1,0 +1,71 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sat, 24 Oct 2026 15:35:57 +0700
+Subject: [PATCH 94/97] arm64: dts: exynos7570: add the WLBT subsystem; j4lte:
+ enable it
+
+The WLBT (WiFi/BT) node for the downstream SCSC maxwell core's platform
+MIF driver (samsung,scsc_wifibt), as in the downstream
+exynos7570-rev01.dtsi: the AP <-> WLBT mailbox at 0x10580000 and the
+MBOX, ALIVE and WDOG interrupts (SPI 376, 21, 476), with the PMU syscon
+for the WLBT power and reset controls.
+
+The J4 enables it with the existing wifibt carveout at 0x79000000 as
+its memory-region. The downstream usbpll,owner and
+samsung,syscon-cmu_fsys properties are left out: the USB PLL stays with
+the AP (fout_fsys_wpll_usb), which USB depends on.
+---
+ arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts |  8 +++++++-
+ arch/arm64/boot/dts/exynos/exynos7570.dtsi      | 13 +++++++++++++
+ 2 files changed, 20 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+index f6a52378a..80c5e502a 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
++++ b/arch/arm64/boot/dts/exynos/exynos7570-j4lte.dts
+@@ -91,7 +91,7 @@ modem_rmem: modem@73400000 {
+ 			no-map;
+ 		};
+ 
+-		wifibt@79000000 {
++		wlbt_rmem: wifibt@79000000 {
+ 			reg = <0x0 0x79000000 0x400000>;
+ 			no-map;
+ 		};
+@@ -138,6 +138,12 @@ &mmc0 {
+ 	status = "okay";
+ };
+ 
++/* the USB PLL (usbpll,owner) is left to the AP for now */
++&wlbt {
++	memory-region = <&wlbt_rmem>;
++	status = "okay";
++};
++
+ &usbdrd {
+ 	vdd33-supply = <&vdd_usb33>;
+ 
+diff --git a/arch/arm64/boot/dts/exynos/exynos7570.dtsi b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+index 1bdd3e801..f7600ec3e 100644
+--- a/arch/arm64/boot/dts/exynos/exynos7570.dtsi
++++ b/arch/arm64/boot/dts/exynos/exynos7570.dtsi
+@@ -170,6 +170,19 @@ adc: adc@10550000 {
+ 			#io-channel-cells = <1>;
+ 		};
+ 
++		/* WLBT (WiFi/BT) subsystem, for the downstream SCSC maxwell core */
++		wlbt: wlbt@10580000 {
++			compatible = "samsung,scsc_wifibt";
++			/* AP <-> WLBT mailbox */
++			reg = <0x10580000 0x180>;
++			interrupts = <GIC_SPI 376 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 21 IRQ_TYPE_LEVEL_HIGH>,
++				     <GIC_SPI 476 IRQ_TYPE_LEVEL_HIGH>;
++			interrupt-names = "MBOX", "ALIVE", "WDOG";
++			samsung,syscon-phandle = <&pmu_system_controller>;
++			status = "disabled";
++		};
++
+ 		i2c_tsp: i2c@13840000 {
+ 			compatible = "samsung,exynos7570-i2c", "samsung,s3c2440-i2c";
+ 			reg = <0x13840000 0x100>;

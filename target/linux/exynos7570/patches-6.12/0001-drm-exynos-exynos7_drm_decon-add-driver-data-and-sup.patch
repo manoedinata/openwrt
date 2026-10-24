@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Fri, 1 Nov 2024 11:44:42 +0900
-Subject: [PATCH 01/92] drm/exynos: exynos7_drm_decon: add driver data and
+Subject: [PATCH 01/97] drm/exynos: exynos7_drm_decon: add driver data and
  support for Exynos7870
 
 Add support for Exynos 7870 DECON in the Exynos 7 DECON driver.

@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 09:18:11 +0700
-Subject: [PATCH 54/92] rtc: add Samsung S2MPU06 RTC driver
+Subject: [PATCH 54/97] rtc: add Samsung S2MPU06 RTC driver
 
 The RTC lives in block 2 of the PMIC on the SPEEDY bus; its alarm0 interrupt
 comes through the PMIC's regmap-irq chip.

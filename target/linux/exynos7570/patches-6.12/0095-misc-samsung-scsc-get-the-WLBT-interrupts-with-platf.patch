@@ -1,0 +1,81 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sat, 24 Oct 2026 16:04:53 +0700
+Subject: [PATCH 95/97] misc: samsung: scsc: get the WLBT interrupts with
+ platform_get_irq_byname()
+
+OF platform devices no longer carry IRQ resources, so the downstream
+loop over platform_get_resource(IORESOURCE_IRQ) found none and the
+probe failed with "No IRQ resource at index 0". Look the MBOX, ALIVE
+and WDOG interrupts up by name and take the trigger type from the irq.
+
+Verified on the J4: the platform MIF probes (MBOX/ALIVE/WDOG irqs,
+level high), and mx_client_test boots the WLBT firmware (S610 EVT2.0,
+MM_START_IND, the NULL service starts and stops).
+---
+ drivers/misc/samsung/scsc/platform_mif.c | 42 +++++++++---------------
+ 1 file changed, 16 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/misc/samsung/scsc/platform_mif.c b/drivers/misc/samsung/scsc/platform_mif.c
+index c2363f90b..6ad5fba31 100644
+--- a/drivers/misc/samsung/scsc/platform_mif.c
++++ b/drivers/misc/samsung/scsc/platform_mif.c
+@@ -12,6 +12,7 @@
+ 
+ #include <linux/module.h>
+ #include <linux/interrupt.h>
++#include <linux/irq.h>
+ #include <linux/platform_device.h>
+ #include <linux/moduleparam.h>
+ #include <linux/iommu.h>
+@@ -1109,35 +1110,24 @@ struct scsc_mif_abs *platform_mif_create(struct platform_device *pdev)
+ 	}
+ 	SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "platform->reg_start %lx size %x base %p\n", (uintptr_t)platform->reg_start, (u32)platform->reg_size, platform->base);
+ 
+-	/* Get the 3 IRQ resources */
++	/* Get the 3 IRQs; OF platform devices no longer carry IRQ resources */
+ 	for (i = 0; i < 3; i++) {
+-		struct resource *irq_res;
+-		int             irqtag;
+-
+-		irq_res = platform_get_resource(pdev, IORESOURCE_IRQ, i);
+-		if (!irq_res) {
+-			SCSC_TAG_ERR_DEV(PLAT_MIF, platform->dev, "No IRQ resource at index %d\n", i);
+-			err = -ENOENT;
+-			goto error_exit;
+-		}
+-
+-		if (!strcmp(irq_res->name, "MBOX")) {
+-			SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "MBOX irq %d flag 0x%x\n", (u32)irq_res->start, (u32)irq_res->flags);
+-			irqtag = PLATFORM_MIF_MBOX;
+-		} else if (!strcmp(irq_res->name, "ALIVE")) {
+-			SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "ALIVE irq %d flag 0x%x\n", (u32)irq_res->start, (u32)irq_res->flags);
+-			irqtag = PLATFORM_MIF_ALIVE;
+-		} else if (!strcmp(irq_res->name, "WDOG")) {
+-			SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "WDOG irq %d flag 0x%x\n", (u32)irq_res->start, (u32)irq_res->flags);
+-			irqtag = PLATFORM_MIF_WDOG;
+-		} else {
+-			SCSC_TAG_ERR_DEV(PLAT_MIF, &pdev->dev, "Invalid irq res name: %s\n",
+-				irq_res->name);
+-			err = -EINVAL;
++		static const char * const irq_names[] = {
++			[PLATFORM_MIF_MBOX] = "MBOX",
++			[PLATFORM_MIF_ALIVE] = "ALIVE",
++			[PLATFORM_MIF_WDOG] = "WDOG",
++		};
++		int irq = platform_get_irq_byname(pdev, irq_names[i]);
++
++		if (irq < 0) {
++			SCSC_TAG_ERR_DEV(PLAT_MIF, platform->dev, "No %s IRQ\n", irq_names[i]);
++			err = irq;
+ 			goto error_exit;
+ 		}
+-		platform->wlbt_irq[irqtag].irq_num = irq_res->start;
+-		platform->wlbt_irq[irqtag].flags = (irq_res->flags & IRQF_TRIGGER_MASK);
++		platform->wlbt_irq[i].irq_num = irq;
++		platform->wlbt_irq[i].flags = irq_get_trigger_type(irq);
++		SCSC_TAG_INFO_DEV(PLAT_MIF, platform->dev, "%s irq %d flag 0x%x\n", irq_names[i], irq,
++				  platform->wlbt_irq[i].flags);
+ 	}
+ 
+ 	/* PMU reg map - syscon */

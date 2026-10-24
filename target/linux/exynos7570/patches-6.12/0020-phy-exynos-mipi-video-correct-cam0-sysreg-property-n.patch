@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Thu, 10 Jul 2025 16:42:48 +0530
-Subject: [PATCH 20/92] phy: exynos-mipi-video: correct cam0 sysreg property
+Subject: [PATCH 20/97] phy: exynos-mipi-video: correct cam0 sysreg property
  name for exynos7870
 
 Fix the cam0 sysreg property name (samsung,cam0-sysreg), which has been

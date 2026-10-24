@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 11:56:50 +0700
-Subject: [PATCH 58/92] power: supply: s2mpu06: report the battery temperature
+Subject: [PATCH 58/97] power: supply: s2mpu06: report the battery temperature
 
 The thermistor is read through the AP's ADC and converted with a table from
 the device tree; the gauge also wants it as a coarse environment value.

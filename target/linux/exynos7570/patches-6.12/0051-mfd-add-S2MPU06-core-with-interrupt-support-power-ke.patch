@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 09:08:56 +0700
-Subject: [PATCH 51/92] mfd: add S2MPU06 core with interrupt support, power
+Subject: [PATCH 51/97] mfd: add S2MPU06 core with interrupt support, power
  key, eMMC supplies
 
 The PMIC's shared level-low interrupt is a regmap-irq chip on the PMIC

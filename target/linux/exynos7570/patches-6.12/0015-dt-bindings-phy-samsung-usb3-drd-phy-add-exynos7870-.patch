@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Thu, 10 Apr 2025 14:01:13 +0530
-Subject: [PATCH 15/92] dt-bindings: phy: samsung,usb3-drd-phy: add
+Subject: [PATCH 15/97] dt-bindings: phy: samsung,usb3-drd-phy: add
  exynos7870-usbdrd-phy compatible
 
 Add the compatible string "samsung,exynos7870-usbdrd-phy" to the

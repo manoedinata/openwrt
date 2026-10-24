@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sat, 1 Mar 2025 01:10:33 +0530
-Subject: [PATCH 10/92] dt-bindings: usb: samsung,exynos-dwc3: add exynos7870
+Subject: [PATCH 10/97] dt-bindings: usb: samsung,exynos-dwc3: add exynos7870
  support
 
 Document compatible string for Exynos7870 DWC3-compatible USB 2.0
