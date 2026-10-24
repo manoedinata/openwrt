@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sun, 6 Jul 2025 23:55:35 +0530
-Subject: [PATCH 021/104] drm/bridge: samsung-dsim: support separate LINK and
+Subject: [PATCH 021/105] drm/bridge: samsung-dsim: support separate LINK and
  DPHY status registers
 
 Exynos7870's DSIM has separate registers for LINK and DPHY status. This

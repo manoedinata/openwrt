@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 13:12:24 +0700
-Subject: [PATCH 063/104] extcon: sm5502: report CDP, factory jigs, desk dock
+Subject: [PATCH 063/105] extcon: sm5502: report CDP, factory jigs, desk dock
  and type 2 chargers
 
 The ADC values and device types are the ones of the J4's cable table. The

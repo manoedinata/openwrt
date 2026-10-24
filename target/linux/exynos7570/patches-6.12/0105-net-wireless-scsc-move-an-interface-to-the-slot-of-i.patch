@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 25 Oct 2026 00:34:23 +0700
+Subject: [PATCH 105/105] net: wireless: scsc: move an interface to the slot of
+ its new type
+
+OpenWrt's wifi-scripts reuse a down interface of a fullmac phy for a new
+one (rename + NL80211_CMD_SET_INTERFACE) instead of deleting and adding,
+so an AP netdev in the hotspot slot (SLSI_NET_INDEX_P2PX_SWLAN) can turn
+into the station. The firmware rejects a station vif there
+(mlme_add_vif_cfm result 0x0026, FAULT_IND 0xC005) and the driver
+expects the station on SLSI_NET_INDEX_WLAN. On a type change of an
+interface without a firmware vif, move it to the slot of the new type
+(station: WLAN, AP: hotspot) when that slot is free. The MAC address
+stays: wpa_supplicant and hostapd already use the netdev's.
+
+Verified on the J4 as a repeater (AP + station): vif 1 station
+associated upstream with DHCP and a default route, vif 3 AP with a
+phone associated.
+---
+ drivers/net/wireless/scsc/cfg80211_ops.c |  3 ++
+ drivers/net/wireless/scsc/netif.c        | 49 ++++++++++++++++++++++++
+ drivers/net/wireless/scsc/netif.h        |  1 +
+ 3 files changed, 53 insertions(+)
+
+diff --git a/drivers/net/wireless/scsc/cfg80211_ops.c b/drivers/net/wireless/scsc/cfg80211_ops.c
+index 19a0941f3..ca1bb1664 100755
+--- a/drivers/net/wireless/scsc/cfg80211_ops.c
++++ b/drivers/net/wireless/scsc/cfg80211_ops.c
+@@ -133,6 +133,9 @@ static int slsi_change_virtual_intf(struct wiphy *wiphy,
+ 
+ 	SLSI_UNUSED_PARAMETER(flags);
+ 
++	if (!ndev_vif->activated)
++		slsi_netif_move_slot(SDEV_FROM_WIPHY(wiphy), dev, type);
++
+ 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+ 
+ 	SLSI_NET_DBG1(dev, SLSI_CFG80211, "type:%u, iftype:%d\n", type, ndev_vif->iftype);
+diff --git a/drivers/net/wireless/scsc/netif.c b/drivers/net/wireless/scsc/netif.c
+index 4119d36c8..04681441b 100644
+--- a/drivers/net/wireless/scsc/netif.c
++++ b/drivers/net/wireless/scsc/netif.c
+@@ -1216,6 +1216,55 @@ static int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int if
+ 	return ret;
+ }
+ 
++/*
++ * OpenWrt's wifi-scripts reuse a down interface of a fullmac phy for a new
++ * one (rename + NL80211_CMD_SET_INTERFACE) instead of deleting and adding,
++ * so an AP netdev in the hotspot slot can become the station and the other
++ * way round. The firmware rejects a station vif on the hotspot slot (and
++ * the driver expects it on SLSI_NET_INDEX_WLAN), so move the netdev to the
++ * slot of its new type when that slot is free.
++ */
++int slsi_netif_move_slot(struct slsi_dev *sdev, struct net_device *dev, enum nl80211_iftype type)
++{
++	struct netdev_vif *ndev_vif = netdev_priv(dev);
++	int               from = ndev_vif->ifnum;
++	int               to;
++
++	if (type == NL80211_IFTYPE_STATION)
++		to = SLSI_NET_INDEX_WLAN;
++	else if (type == NL80211_IFTYPE_AP)
++		to = SLSI_NET_INDEX_P2PX_SWLAN;
++	else
++		return 0;
++
++	/* only an interface with no firmware vif (not activated; the caller
++	 * checks) moves: it can be up, wifi-scripts reuse a stopped AP whose
++	 * carrier is off but which is still IFF_UP
++	 */
++	if (from == to || (from != SLSI_NET_INDEX_WLAN && from != SLSI_NET_INDEX_P2PX_SWLAN))
++		return 0;
++
++	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
++	if (sdev->netdev[to]) {
++		SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
++		return 0;
++	}
++
++	SLSI_NET_INFO(dev, "move from vif slot %d to %d\n", from, to);
++	if (from == SLSI_NET_INDEX_P2PX_SWLAN && sdev->netdev_ap == dev)
++		rcu_assign_pointer(sdev->netdev_ap, NULL);
++	rcu_assign_pointer(sdev->netdev[from], NULL);
++	ndev_vif->ifnum = to;
++	rcu_assign_pointer(sdev->netdev[to], dev);
++	synchronize_rcu();
++
++	if (to == SLSI_NET_INDEX_WLAN)
++		sdev->wlan_unsync_vif_state = WLAN_UNSYNC_NO_VIF;
++	/* the MAC stays: wpa_supplicant/hostapd already use the netdev's */
++	SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
++	return 0;
++}
++
+ int slsi_netif_dynamic_iface_add(struct slsi_dev *sdev, const char *name, enum nl80211_iftype type)
+ {
+ 	int index = -EINVAL;
+diff --git a/drivers/net/wireless/scsc/netif.h b/drivers/net/wireless/scsc/netif.h
+index 6d3f8685e..876a05be4 100644
+--- a/drivers/net/wireless/scsc/netif.h
++++ b/drivers/net/wireless/scsc/netif.h
+@@ -94,6 +94,7 @@ struct slsi_peer;
+ int slsi_netif_init(struct slsi_dev *sdev);
+ /* returns the index or -E<error> code */
+ int slsi_netif_dynamic_iface_add(struct slsi_dev *sdev, const char *name, enum nl80211_iftype type);
++int slsi_netif_move_slot(struct slsi_dev *sdev, struct net_device *dev, enum nl80211_iftype type);
+ int slsi_netif_register(struct slsi_dev *sdev, struct net_device *dev);
+ int slsi_netif_register_rtlnl_locked(struct slsi_dev *sdev, struct net_device *dev);
+ void slsi_netif_remove(struct slsi_dev *sdev, struct net_device *dev);

@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 08:15:13 +0700
-Subject: [PATCH 045/104] clk: samsung: exynos7570: keep the USB PHY clock gate
+Subject: [PATCH 045/105] clk: samsung: exynos7570: keep the USB PHY clock gate
  enabled
 
 The PHY driver enables its 'phy' clock only around the PHY initialisation and

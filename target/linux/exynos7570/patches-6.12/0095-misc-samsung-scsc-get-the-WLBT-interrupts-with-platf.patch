@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 16:04:53 +0700
-Subject: [PATCH 095/104] misc: samsung: scsc: get the WLBT interrupts with
+Subject: [PATCH 095/105] misc: samsung: scsc: get the WLBT interrupts with
  platform_get_irq_byname()
 
 OF platform devices no longer carry IRQ resources, so the downstream

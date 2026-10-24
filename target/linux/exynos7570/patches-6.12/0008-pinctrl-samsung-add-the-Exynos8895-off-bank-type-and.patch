@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 01:08:42 +0700
-Subject: [PATCH 008/104] pinctrl: samsung: add the Exynos8895 off-bank type
+Subject: [PATCH 008/105] pinctrl: samsung: add the Exynos8895 off-bank type
  and EINTG bank macro
 
 The Exynos7870 pin banks backported from upstream use

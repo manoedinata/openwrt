@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 16:07:39 +0700
-Subject: [PATCH 070/104] arm64: dts: exynos7570: j4lte: leave eMMC HS400 off
+Subject: [PATCH 070/105] arm64: dts: exynos7570: j4lte: leave eMMC HS400 off
  for now
 
 HS400 passes the read and write tests, but large package installs on the
