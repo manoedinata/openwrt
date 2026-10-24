@@ -68,9 +68,14 @@ function find_reusable_wdev(phyidx)
 		nl80211.const.NL80211_CMD_GET_INTERFACE,
 		nl80211.const.NLM_F_DUMP,
 		{ wiphy: phyidx });
-	for (let res in data)
+	for (let res in data) {
+		// an AP belongs to hostapd; right after it starts or while it
+		// restarts its carrier (and operstate) is down, but it is in use
+		if (res.iftype == nl80211.const.NL80211_IFTYPE_AP)
+			continue;
 		if (trim(readfile(`/sys/class/net/${res.ifname}/operstate`)) == "down")
 			return res.ifname;
+	}
 	return null;
 }
 
