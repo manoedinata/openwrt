@@ -1,7 +1,8 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sat, 1 Mar 2025 01:16:51 +0530
-Subject: [PATCH 05/97] soc: samsung: exynos-chipid: add support for exynos7870
+Subject: [PATCH 005/104] soc: samsung: exynos-chipid: add support for
+ exynos7870
 
 Add the product ID of Exynos7870 (S5E7870) to the existing list.
 

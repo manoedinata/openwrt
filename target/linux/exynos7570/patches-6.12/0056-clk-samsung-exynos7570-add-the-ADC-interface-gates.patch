@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 11:56:49 +0700
-Subject: [PATCH 56/97] clk: samsung: exynos7570: add the ADC interface gates
+Subject: [PATCH 056/104] clk: samsung: exynos7570: add the ADC interface gates
 
 Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
 (cherry picked from commit e05a3dd3b709c5248f46d150c337844489dafe77)

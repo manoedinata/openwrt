@@ -1,0 +1,97 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sat, 24 Oct 2026 17:16:21 +0700
+Subject: [PATCH 101/104] net: wireless: scsc: make AP mode work with hostapd
+
+OpenWrt's hostapd/wifi-scripts bring an AP up differently from
+Android's, and three things stopped it:
+- set_qos_map failed with -EINVAL on anything but a connected station;
+  hostapd sets a QoS map while bringing up the AP and gives up
+  ("Failed to initialize QoS Map"). Ignore it on an AP/P2P GO.
+- slsi_dynamic_interface_create() registered the netdev as the default
+  station and set the AP type afterwards, but cfg80211 marks a non-4addr
+  station IFF_DONT_BRIDGE at registration, so the AP could not join
+  br-lan ("Failed to add interface phy0-ap0 into bridge br-lan: Not
+  supported"). Set the type before registering.
+- the static HT capabilities (RX-STBC123, greenfield) differed from the
+  firmware's (0x016f: RX-STBC1), which replace them once the firmware
+  runs. wifi-scripts built ht_capab from the static ones and hostapd
+  then rejected it ("Driver does not support configured HT capability
+  [RX-STBC*]"). Make the static ones equal the S610 firmware's.
+
+Verified on the J4: hostapd AP-ENABLED on phy0-ap0 in br-lan (WPA2,
+channel 1, HT20), a phone associates and gets a DHCP lease. hostapd
+still logs "Failed to set beacon parameters" (change_beacon is not
+implemented) without effect on the AP.
+---
+ drivers/net/wireless/scsc/cfg80211_ops.c | 17 +++++++++++++++--
+ drivers/net/wireless/scsc/mgt.c          | 12 ++++++++----
+ 2 files changed, 23 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/net/wireless/scsc/cfg80211_ops.c b/drivers/net/wireless/scsc/cfg80211_ops.c
+index d8724d790..d324ffbbe 100755
+--- a/drivers/net/wireless/scsc/cfg80211_ops.c
++++ b/drivers/net/wireless/scsc/cfg80211_ops.c
+@@ -1475,6 +1475,12 @@ static int slsi_set_qos_map(struct wiphy *wiphy, struct net_device *dev, struct
+ 
+ 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+ 
++	/* hostapd sets a QoS map while bringing up an AP and fails on an
++	 * error; the driver only maps on a station, so ignore it there.
++	 */
++	if (ndev_vif->iftype == NL80211_IFTYPE_AP || ndev_vif->iftype == NL80211_IFTYPE_P2P_GO)
++		goto exit;
++
+ 	if (!ndev_vif->activated) {
+ 		r = -EINVAL;
+ 		goto exit;
+@@ -3239,10 +3245,17 @@ static struct ieee80211_rate       wifi_11a_rates[] = {
+ 
+ static struct ieee80211_sta_ht_cap slsi_ht_cap = {
+ 	.ht_supported       = true,
++	/*
++	 * Until the firmware runs, cfg80211 reports these; slsi_start()
++	 * replaces them with the firmware's (0x016f on the J4's S610). Keep
++	 * them equal: OpenWrt builds hostapd's ht_capab from the phy before
++	 * the AP starts the firmware, and hostapd rejects a config asking for
++	 * more (RX-STBC123, GF) than the firmware's capabilities then allow.
++	 */
+ 	.cap                = IEEE80211_HT_CAP_SUP_WIDTH_20_40 |
+ 			      IEEE80211_HT_CAP_LDPC_CODING |
+-			      IEEE80211_HT_CAP_RX_STBC |
+-			      IEEE80211_HT_CAP_GRN_FLD |
++			      IEEE80211_HT_CAP_SM_PS |
++			      (1 << IEEE80211_HT_CAP_RX_STBC_SHIFT) |
+ 			      IEEE80211_HT_CAP_SGI_20 |
+ 			      IEEE80211_HT_CAP_SGI_40,
+ 	.ampdu_factor       = IEEE80211_HT_MAX_AMPDU_64K,
+diff --git a/drivers/net/wireless/scsc/mgt.c b/drivers/net/wireless/scsc/mgt.c
+index 7f4b908b3..29a1a3e6c 100755
+--- a/drivers/net/wireless/scsc/mgt.c
++++ b/drivers/net/wireless/scsc/mgt.c
+@@ -767,10 +767,10 @@ struct net_device *slsi_dynamic_interface_create(struct wiphy        *wiphy,
+ 
+ 	ndev_vif = netdev_priv(dev);
+ 
+-	err = slsi_netif_register_rtlnl_locked(sdev, dev);
+-	if (err)
+-		return NULL;
+-
++	/* Before registering: cfg80211 marks a non-4addr station netdev
++	 * IFF_DONT_BRIDGE when it is registered, so an AP registered as the
++	 * default station type could not join a bridge (OpenWrt's br-lan).
++	 */
+ 	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
+ 	ndev_vif->iftype = type;
+ 	dev->ieee80211_ptr->iftype = type;
+@@ -778,6 +778,10 @@ struct net_device *slsi_dynamic_interface_create(struct wiphy        *wiphy,
+ 		dev->ieee80211_ptr->use_4addr = params->use_4addr;
+ 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+ 
++	err = slsi_netif_register_rtlnl_locked(sdev, dev);
++	if (err)
++		return NULL;
++
+ 	return dev;
+ }
+ 

@@ -1,0 +1,86 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 25 Oct 2026 00:14:05 +0700
+Subject: [PATCH 103/104] net: wireless: scsc: implement change_beacon
+
+Downstream returned -EOPNOTSUPP; Android's hostapd never needed it, but
+OpenWrt's updates the beacon now and then and logged "Failed to set
+beacon parameters" every few seconds. The firmware builds the beacon
+from MLME-START and the host only adds IEs to it, so re-send the
+additional IEs (cached WPA/WMM plus the vendor IEs) of the beacon, probe
+response and association response, as slsi_start_ap() sets them. The
+rest of the beacon cannot change without restarting the AP.
+
+Verified on the J4: hostapd AP-ENABLED, a phone associates and gets a
+DHCP lease, no "Failed to set beacon parameters" in over a minute (it
+came within seconds before).
+---
+ drivers/net/wireless/scsc/cfg80211_ops.c | 51 +++++++++++++++++++++++-
+ 1 file changed, 49 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/wireless/scsc/cfg80211_ops.c b/drivers/net/wireless/scsc/cfg80211_ops.c
+index d324ffbbe..3ef4cc561 100755
+--- a/drivers/net/wireless/scsc/cfg80211_ops.c
++++ b/drivers/net/wireless/scsc/cfg80211_ops.c
+@@ -2341,12 +2341,59 @@ static int slsi_start_ap(struct wiphy *wiphy, struct net_device *dev,
+ 	return r;
+ }
+ 
++/* push the additional IEs (cached WPA/WMM + vendor IEs) of one frame type */
++static int slsi_ap_update_info_ies(struct slsi_dev *sdev, struct net_device *dev, u16 purpose,
++				   const u8 *ies, size_t ies_len)
++{
++	struct netdev_vif *ndev_vif = netdev_priv(dev);
++	int               r;
++
++	r = slsi_ap_prepare_add_info_ies(ndev_vif, ies, ies_len);
++	if (r)
++		return r;
++	r = slsi_mlme_add_info_elements(sdev, dev, purpose, ndev_vif->ap.add_info_ies, ndev_vif->ap.add_info_ies_len);
++	slsi_clear_cached_ies(&ndev_vif->ap.add_info_ies, &ndev_vif->ap.add_info_ies_len);
++	return r;
++}
++
++/*
++ * Downstream did not implement this (-EOPNOTSUPP) and Android's hostapd
++ * never needed it; OpenWrt's updates the beacon now and then and logs
++ * "Failed to set beacon parameters" each time. The firmware builds the
++ * beacon itself from MLME-START, the host only adds IEs to it, so update
++ * those like slsi_start_ap() sets them; the rest of the beacon (head, HT
++ * operation, ...) cannot change without restarting the AP.
++ */
+ static int slsi_change_beacon(struct wiphy *wiphy, struct net_device *dev,
+ 		       struct cfg80211_beacon_data *info)
+ {
+-	SLSI_UNUSED_PARAMETER(info);
++	struct slsi_dev   *sdev = SDEV_FROM_WIPHY(wiphy);
++	struct netdev_vif *ndev_vif = netdev_priv(dev);
++	int               r = 0;
+ 
+-	return -EOPNOTSUPP;
++	SLSI_MUTEX_LOCK(ndev_vif->vif_mutex);
++	if (!ndev_vif->activated || ndev_vif->vif_type != FAPI_VIFTYPE_AP) {
++		r = -EINVAL;
++		goto exit;
++	}
++
++	if (info->beacon_ies) {
++		r = slsi_ap_update_info_ies(sdev, dev, FAPI_PURPOSE_BEACON, info->beacon_ies, info->beacon_ies_len);
++		if (r)
++			goto exit;
++	}
++	if (info->proberesp_ies) {
++		r = slsi_ap_update_info_ies(sdev, dev, FAPI_PURPOSE_PROBE_RESPONSE, info->proberesp_ies, info->proberesp_ies_len);
++		if (r)
++			goto exit;
++	}
++	if (info->assocresp_ies)
++		r = slsi_ap_update_info_ies(sdev, dev, FAPI_PURPOSE_ASSOCIATION_RESPONSE, info->assocresp_ies, info->assocresp_ies_len);
++exit:
++	if (r)
++		SLSI_NET_ERR(dev, "change_beacon failed: %d\n", r);
++	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
++	return r;
+ }
+ 
+ static int slsi_stop_ap(struct wiphy *wiphy, struct net_device *dev)

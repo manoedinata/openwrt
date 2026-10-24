@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Wed, 6 Nov 2024 09:00:54 +0900
-Subject: [PATCH 02/97] dt-bindings: display: samsung,exynos7-decon: add
+Subject: [PATCH 002/104] dt-bindings: display: samsung,exynos7-decon: add
  exynos7870 compatible
 
 Add the compatible string of Exynos7870 to the existing list.

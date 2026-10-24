@@ -1,8 +1,8 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 07:39:01 +0700
-Subject: [PATCH 41/97] arm64: dts: exynos7570: add the DW-MSHC controllers and
- enable the eMMC
+Subject: [PATCH 041/104] arm64: dts: exynos7570: add the DW-MSHC controllers
+ and enable the eMMC
 
 Add the two DW-MSHC controllers: mmc0 (eMMC, with the SMU) and mmc2 (SD
 card), clocked from CMU_FSYS. They behave like the ones of the Exynos7870,

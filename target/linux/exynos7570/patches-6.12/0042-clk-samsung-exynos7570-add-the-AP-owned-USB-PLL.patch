@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 08:02:31 +0700
-Subject: [PATCH 42/97] clk: samsung: exynos7570: add the AP-owned USB PLL
+Subject: [PATCH 042/104] clk: samsung: exynos7570: add the AP-owned USB PLL
 
 The 20 MHz reference clock of the USB PHY comes from a PLL in the WLBT block.
 Without the WLBT firmware the AP owns it: select the 26 MHz reference, enable

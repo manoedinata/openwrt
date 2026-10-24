@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 08:58:34 +0700
-Subject: [PATCH 49/97] regulator: add Samsung S2MPU06 regulator driver
+Subject: [PATCH 049/104] regulator: add Samsung S2MPU06 regulator driver
 
 Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
 (cherry picked from commit e9af4670e27e0a9b49c518857a08851949eebd8d)

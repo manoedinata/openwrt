@@ -1,8 +1,8 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Tue, 18 Mar 2025 23:01:09 +0530
-Subject: [PATCH 13/97] dt-bindings: gpu: arm,mali-midgard: add exynos7870-mali
- compatible
+Subject: [PATCH 013/104] dt-bindings: gpu: arm,mali-midgard: add
+ exynos7870-mali compatible
 
 Exynos7870 SoC uses the ARM Mali T830 GPU, document its compatible
 string with the appropriate fallback. The T830 compatible is already

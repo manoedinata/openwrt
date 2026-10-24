@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 09:13:59 +0700
-Subject: [PATCH 52/97] arm64: dts: exynos7570: j4lte: allow high-speed/DDR52
+Subject: [PATCH 052/104] arm64: dts: exynos7570: j4lte: allow high-speed/DDR52
  eMMC
 
 Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>

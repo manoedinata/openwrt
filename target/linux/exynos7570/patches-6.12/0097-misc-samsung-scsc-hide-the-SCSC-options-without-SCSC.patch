@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 16:07:13 +0700
-Subject: [PATCH 97/97] misc: samsung: scsc: hide the SCSC options without
+Subject: [PATCH 097/104] misc: samsung: scsc: hide the SCSC options without
  SCSC_CORE
 
 The FW/tool location, platform, build type and dual FEM options had no

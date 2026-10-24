@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 07:09:46 +0700
-Subject: [PATCH 38/97] arm64: dts: exynos7570: add PMU, restart and
+Subject: [PATCH 038/104] arm64: dts: exynos7570: add PMU, restart and
  reboot-mode, ramoops ECC
 
 Add the PMU system controller with the generic Exynos syscon restart and

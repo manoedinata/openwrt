@@ -1,0 +1,111 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 25 Oct 2026 00:18:00 +0700
+Subject: [PATCH 104/104] net: wireless: scsc: station power save off by
+ default
+
+Downstream always put a station in power save (MLME_POWERMGT, reset on
+every disconnect and re-applied after each connect), so iw's power_save
+off only lasted until the next reconnect. Default to active mode, with
+scsc_wlan.power_save=1 for the downstream behaviour; cfg80211's default
+(WIPHY_FLAG_PS_ON_BY_DEFAULT, what iw reports) follows it.
+---
+ drivers/net/wireless/scsc/cfg80211_ops.c |  4 +++-
+ drivers/net/wireless/scsc/mgt.c          | 27 ++++++++++++++++++------
+ drivers/net/wireless/scsc/mgt.h          |  2 ++
+ drivers/net/wireless/scsc/netif.c        |  7 ++----
+ 4 files changed, 28 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/wireless/scsc/cfg80211_ops.c b/drivers/net/wireless/scsc/cfg80211_ops.c
+index 3ef4cc561..19a0941f3 100755
+--- a/drivers/net/wireless/scsc/cfg80211_ops.c
++++ b/drivers/net/wireless/scsc/cfg80211_ops.c
+@@ -3475,7 +3475,9 @@ struct slsi_dev                           *slsi_cfg80211_new(struct device *dev)
+ 
+ 	/* Allow changing of the netns, if NOT set then no changes are allowed */
+ 	wiphy->flags |= WIPHY_FLAG_NETNS_OK;
+-	wiphy->flags |= WIPHY_FLAG_PS_ON_BY_DEFAULT;
++	/* cfg80211's (iw's) power save default follows the driver's */
++	if (slsi_power_save_default())
++		wiphy->flags |= WIPHY_FLAG_PS_ON_BY_DEFAULT;
+ 	wiphy->flags |= WIPHY_FLAG_CONTROL_PORT_PROTOCOL;
+ 
+ 	/* wiphy->flags |= WIPHY_FLAG_SUPPORTS_FW_ROAM;
+diff --git a/drivers/net/wireless/scsc/mgt.c b/drivers/net/wireless/scsc/mgt.c
+index 29a1a3e6c..8f7a81761 100755
+--- a/drivers/net/wireless/scsc/mgt.c
++++ b/drivers/net/wireless/scsc/mgt.c
+@@ -47,6 +47,25 @@
+ #include "scsc_wlbtd.h"
+ #endif
+ 
++/* Station power save (downstream: always on; the firmware dozes between
++ * beacons). Off by default here, for latency; power_save=1 restores it.
++ */
++static bool power_save;
++module_param(power_save, bool, 0444);
++MODULE_PARM_DESC(power_save, "Station power save by default (0: off, the default; 1: on)");
++
++bool slsi_power_save_default(void)
++{
++	return power_save;
++}
++
++u16 slsi_default_power_mode(void)
++{
++	if (slsi_is_rf_test_mode_enabled())
++		return FAPI_POWERMANAGEMENTMODE_ACTIVE_MODE;
++	return power_save ? FAPI_POWERMANAGEMENTMODE_POWER_SAVE : FAPI_POWERMANAGEMENTMODE_ACTIVE_MODE;
++}
++
+ #define CSR_WIFI_SME_MIB2_HOST_PSID_MASK    0x8000
+ #define SLSI_DEFAULT_HW_MAC_ADDR    "\x00\x00\x0F\x11\x22\x33"
+ #define MX_WLAN_FILE_PATH_LEN_MAX (128)
+@@ -2264,13 +2283,9 @@ void slsi_vif_deactivated(struct slsi_dev *sdev, struct net_device *dev)
+ 
+ 	/* MUST be done last as lots of code is dependent on checking the vif_type */
+ 	ndev_vif->vif_type = SLSI_VIFTYPE_UNSPECIFIED;
+-	ndev_vif->set_power_mode = FAPI_POWERMANAGEMENTMODE_POWER_SAVE;
+-	if (slsi_is_rf_test_mode_enabled()) {
++	if (slsi_is_rf_test_mode_enabled())
+ 		SLSI_NET_ERR(dev, "*#rf# rf test mode set is enabled.\n");
+-		ndev_vif->set_power_mode = FAPI_POWERMANAGEMENTMODE_ACTIVE_MODE;
+-	} else {
+-		ndev_vif->set_power_mode = FAPI_POWERMANAGEMENTMODE_POWER_SAVE;
+-	}
++	ndev_vif->set_power_mode = slsi_default_power_mode();
+ 	ndev_vif->mgmt_tx_data.exp_frame = SLSI_PA_INVALID;
+ 
+ 	/* SHOULD have cleared any peer records */
+diff --git a/drivers/net/wireless/scsc/mgt.h b/drivers/net/wireless/scsc/mgt.h
+index d54b67e5a..79d6c47ce 100644
+--- a/drivers/net/wireless/scsc/mgt.h
++++ b/drivers/net/wireless/scsc/mgt.h
+@@ -535,6 +535,8 @@ int slsi_test_send_hanged_vendor_event(struct net_device *dev);
+ #endif
+ void slsi_wlan_dump_public_action_subtype(struct slsi_dev *sdev, struct ieee80211_mgmt *mgmt, bool tx);
+ void slsi_reset_channel_flags(struct slsi_dev *sdev);
++bool slsi_power_save_default(void);
++u16 slsi_default_power_mode(void);
+ 
+ /* Sysfs based mac address override */
+ void slsi_create_sysfs_macaddr(void);
+diff --git a/drivers/net/wireless/scsc/netif.c b/drivers/net/wireless/scsc/netif.c
+index 7347cb63f..4119d36c8 100644
+--- a/drivers/net/wireless/scsc/netif.c
++++ b/drivers/net/wireless/scsc/netif.c
+@@ -1142,12 +1142,9 @@ static int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int if
+ 	}
+ 
+ 	/* The default power mode in host*/
+-	if (slsi_is_rf_test_mode_enabled()) {
++	if (slsi_is_rf_test_mode_enabled())
+ 		SLSI_NET_ERR(dev, "*#rf# rf test mode set is enabled.\n");
+-		ndev_vif->set_power_mode = FAPI_POWERMANAGEMENTMODE_ACTIVE_MODE;
+-	} else {
+-		ndev_vif->set_power_mode = FAPI_POWERMANAGEMENTMODE_POWER_SAVE;
+-	}
++	ndev_vif->set_power_mode = slsi_default_power_mode();
+ 
+ 	INIT_LIST_HEAD(&ndev_vif->sta.network_map);
+ 	SLSI_DBG1(sdev, SLSI_NETDEV, "ifnum=%d\n", ndev_vif->ifnum);

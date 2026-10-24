@@ -1,0 +1,102 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sat, 24 Oct 2026 16:58:19 +0700
+Subject: [PATCH 099/104] net: wireless: scsc: survive a deleted wlan0
+
+OpenWrt's netifd deletes the interfaces of a phy (del_virtual_intf)
+and adds its own, so wlan0 can be gone; Android never does that.
+- slsi_check_rx_flowcontrol() took netdev_priv() of the NULL wlan0
+  netdev (not NULL itself) and read its RX queue: an oops in hip4_wq as
+  soon as the firmware ran ("Unable to handle kernel paging request at
+  virtual address 00000000000010a8", LuCI's scan)
+- a station added while wlan0's slot is free (tmp.radio0, phy0-sta0)
+  takes that slot instead of the mobile hotspot one, as much of the
+  driver expects the station on SLSI_NET_INDEX_WLAN
+
+Verified on the J4: rpcd's iwinfo scan creates tmp.radio0 in the wlan0
+slot and the scan completes (8 APs) without the oops.
+---
+ drivers/net/wireless/scsc/hip4.c  |  9 +++++----
+ drivers/net/wireless/scsc/mgt.c   |  2 +-
+ drivers/net/wireless/scsc/netif.c | 14 +++++++++++++-
+ drivers/net/wireless/scsc/netif.h |  2 +-
+ 4 files changed, 20 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/net/wireless/scsc/hip4.c b/drivers/net/wireless/scsc/hip4.c
+index 8a5e52f94..99be46529 100755
+--- a/drivers/net/wireless/scsc/hip4.c
++++ b/drivers/net/wireless/scsc/hip4.c
+@@ -723,11 +723,12 @@ static bool slsi_check_rx_flowcontrol(struct slsi_dev *sdev)
+ 	struct netdev_vif *ndev_vif;
+ 	int qlen = 0;
+ 
+-	ndev_vif = netdev_priv(sdev->netdev[SLSI_NET_INDEX_WLAN]);
+-	if (ndev_vif)
+-		qlen = skb_queue_len(&ndev_vif->rx_data.queue);
+-
+ 	SLSI_MUTEX_LOCK(sdev->netdev_remove_mutex);
++	/* wlan0 can be deleted (del_virtual_intf, e.g. by OpenWrt's netifd) */
++	if (sdev->netdev[SLSI_NET_INDEX_WLAN]) {
++		ndev_vif = netdev_priv(sdev->netdev[SLSI_NET_INDEX_WLAN]);
++		qlen = skb_queue_len(&ndev_vif->rx_data.queue);
++	}
+ #if defined(SLSI_NET_INDEX_P2PX_SWLAN)
+ 	if (sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]) {
+ 		ndev_vif = netdev_priv(sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN]);
+diff --git a/drivers/net/wireless/scsc/mgt.c b/drivers/net/wireless/scsc/mgt.c
+index f3a86cad4..00684b178 100755
+--- a/drivers/net/wireless/scsc/mgt.c
++++ b/drivers/net/wireless/scsc/mgt.c
+@@ -759,7 +759,7 @@ struct net_device *slsi_dynamic_interface_create(struct wiphy        *wiphy,
+ 
+ 	SLSI_DBG1(sdev, SLSI_CFG80211, "name:%s\n", name);
+ 
+-	iface = slsi_netif_dynamic_iface_add(sdev, name);
++	iface = slsi_netif_dynamic_iface_add(sdev, name, type);
+ 	if (iface < 0)
+ 		return NULL;
+ 
+diff --git a/drivers/net/wireless/scsc/netif.c b/drivers/net/wireless/scsc/netif.c
+index b2cca55be..7347cb63f 100644
+--- a/drivers/net/wireless/scsc/netif.c
++++ b/drivers/net/wireless/scsc/netif.c
+@@ -1219,13 +1219,25 @@ static int slsi_netif_add_locked(struct slsi_dev *sdev, const char *name, int if
+ 	return ret;
+ }
+ 
+-int slsi_netif_dynamic_iface_add(struct slsi_dev *sdev, const char *name)
++int slsi_netif_dynamic_iface_add(struct slsi_dev *sdev, const char *name, enum nl80211_iftype type)
+ {
+ 	int index = -EINVAL;
+ 	int err;
+ 
+ 	SLSI_MUTEX_LOCK(sdev->netdev_add_remove_mutex);
+ 
++	/*
++	 * A station in place of a deleted wlan0 (OpenWrt's netifd deletes the
++	 * interfaces of a phy and adds its own) takes wlan0's slot: much of the
++	 * driver expects the station on SLSI_NET_INDEX_WLAN.
++	 */
++	if (type == NL80211_IFTYPE_STATION && !sdev->netdev[SLSI_NET_INDEX_WLAN]) {
++		err = slsi_netif_add_locked(sdev, name, SLSI_NET_INDEX_WLAN);
++		index = err ? err : SLSI_NET_INDEX_WLAN;
++		SLSI_MUTEX_UNLOCK(sdev->netdev_add_remove_mutex);
++		return index;
++	}
++
+ #if defined(CONFIG_SCSC_WLAN_MHS_STATIC_INTERFACE) || (defined(SCSC_SEP_VERSION) && SCSC_SEP_VERSION >= 90000)
+ 	if (sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN] == sdev->netdev_ap) {
+ 		rcu_assign_pointer(sdev->netdev[SLSI_NET_INDEX_P2PX_SWLAN], NULL);
+diff --git a/drivers/net/wireless/scsc/netif.h b/drivers/net/wireless/scsc/netif.h
+index 4cbf46160..6d3f8685e 100644
+--- a/drivers/net/wireless/scsc/netif.h
++++ b/drivers/net/wireless/scsc/netif.h
+@@ -93,7 +93,7 @@ struct slsi_peer;
+ 
+ int slsi_netif_init(struct slsi_dev *sdev);
+ /* returns the index or -E<error> code */
+-int slsi_netif_dynamic_iface_add(struct slsi_dev *sdev, const char *name);
++int slsi_netif_dynamic_iface_add(struct slsi_dev *sdev, const char *name, enum nl80211_iftype type);
+ int slsi_netif_register(struct slsi_dev *sdev, struct net_device *dev);
+ int slsi_netif_register_rtlnl_locked(struct slsi_dev *sdev, struct net_device *dev);
+ void slsi_netif_remove(struct slsi_dev *sdev, struct net_device *dev);

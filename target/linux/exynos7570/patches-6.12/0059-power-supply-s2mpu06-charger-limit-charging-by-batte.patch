@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 12:03:48 +0700
-Subject: [PATCH 59/97] power: supply: s2mpu06-charger: limit charging by
+Subject: [PATCH 059/104] power: supply: s2mpu06-charger: limit charging by
  battery temperature
 
 Above 50 degC and below 0 degC charging is switched off; above 41 degC and

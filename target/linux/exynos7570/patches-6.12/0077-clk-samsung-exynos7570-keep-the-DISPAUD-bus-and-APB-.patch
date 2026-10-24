@@ -1,8 +1,8 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Tue, 20 Oct 2026 21:13:32 +0700
-Subject: [PATCH 77/97] clk: samsung: exynos7570: keep the DISPAUD bus and APB
- gates on
+Subject: [PATCH 077/104] clk: samsung: exynos7570: keep the DISPAUD bus and
+ APB gates on
 
 The display runs on these gates from the bootloader on, and they are
 shared: the SysMMU in front of DECON takes the BUS_DISP and APB_DISP

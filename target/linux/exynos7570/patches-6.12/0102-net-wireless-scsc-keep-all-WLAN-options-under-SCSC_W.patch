@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 25 Oct 2026 00:05:15 +0700
+Subject: [PATCH 102/104] net: wireless: scsc: keep all WLAN options under
+ SCSC_WLAN
+
+The options after the downstream 'endif' (MAC address file name, max
+interfaces, ACS, Wi-Fi sharing, ...) had no dependency, so a config
+without SCSC_WLAN, as the OpenWrt kernel without CFG80211, still got
+asked for them: syncconfig stopped at "MAC address filename
+(SCSC_WLAN_MAC_ADDRESS_FILENAME) [/efs/wifi/.mac.info] (NEW)".
+---
+ drivers/net/wireless/scsc/Kconfig | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/scsc/Kconfig b/drivers/net/wireless/scsc/Kconfig
+index 31a77d958..78af5f6e6 100755
+--- a/drivers/net/wireless/scsc/Kconfig
++++ b/drivers/net/wireless/scsc/Kconfig
+@@ -149,7 +149,6 @@ config SCSC_WLAN_ACM_API
+ 	help
+ 	  This option provides API to read TSF.
+ 
+-endif
+ 
+ config SCSC_WLAN_MAC_ADDRESS_FILENAME
+ 	string "MAC address filename"
+@@ -269,3 +268,5 @@ config SCSC_WLAN_DUAL_STATION
+         default n
+         help
+         This option tells if dual station feature is supported or not.
++
++endif # SCSC_WLAN

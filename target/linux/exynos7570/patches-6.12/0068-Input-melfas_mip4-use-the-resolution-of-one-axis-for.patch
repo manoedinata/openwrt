@@ -1,8 +1,8 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 14:51:15 +0700
-Subject: [PATCH 68/97] Input: melfas_mip4 - use the resolution of one axis for
- the other
+Subject: [PATCH 068/104] Input: melfas_mip4 - use the resolution of one axis
+ for the other
 
 Some firmwares report the resolution of one axis only (the MMS438 of the
 Galaxy J4 reports 10 for X and nothing for Y), and libinput refuses such a

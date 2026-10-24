@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sun, 6 Jul 2025 23:55:39 +0530
-Subject: [PATCH 25/97] drm/bridge: samsung-dsim: allow configuring the
+Subject: [PATCH 025/104] drm/bridge: samsung-dsim: allow configuring the
  MAIN_VSA offset
 
 The MAIN_VSA offset of DSIM_MSYNC is hardcoded to a 22-bit offset, but
