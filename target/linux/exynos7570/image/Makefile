@@ -21,8 +21,10 @@ define Device/samsung_j4lte
   DEVICE_DTS := exynos7570-j4lte
   # mobile data (feed j4: samsungipcd, ModemManager with its plugin)
   # WiFi (feed j4: the SCSC WLBT drivers), AP and client
+  # WireGuard (e.g. a wgcf Cloudflare WARP profile)
   DEVICE_PACKAGES := samsungipcd modemmanager luci-proto-modemmanager \
-	luci-theme-material kmod-scsc-wlan wpad-basic-mbedtls iw
+	luci-theme-material kmod-scsc-wlan wpad-basic-mbedtls iw \
+	kmod-wireguard wireguard-tools luci-proto-wireguard
 endef
 TARGET_DEVICES += samsung_j4lte
 
