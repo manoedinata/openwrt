@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 13:01:29 +0700
-Subject: [PATCH 061/105] power: supply: s2mpu06: count the charge cycles in
+Subject: [PATCH 061/106] power: supply: s2mpu06: count the charge cycles in
  the kernel
 
 The fuel gauge adds up the drops of the state of charge (a hundred percent

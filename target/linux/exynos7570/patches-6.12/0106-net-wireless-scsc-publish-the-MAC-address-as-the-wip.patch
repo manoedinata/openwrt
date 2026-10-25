@@ -1,0 +1,153 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Sun, 25 Oct 2026 14:40:02 +0700
+Subject: [PATCH 106/106] net: wireless: scsc: publish the MAC address as the
+ wiphy address
+
+The driver read the MAC address only when the first interface came up and
+never set wiphy->perm_addr, so /sys/class/ieee80211/phy0/macaddress was
+00:00:00:00:00:00. OpenWrt derives the interface addresses from it and
+wrote bssid=00:00:00:00:00:00 into the hostapd config; hostapd ignores
+that on a fresh start, but a `wifi reload` that changes the BSS config
+copies it into the BSS's own address, and every 4-way handshake then
+failed (AP-STA-POSSIBLE-PSK-MISMATCH), e.g. after a passphrase change.
+
+Read the MAC address when the device attaches and set the wiphy address
+from it, unless no address file was found (a random address would not
+match the one used later); the first interface up fills it in then.
+
+Also give a new interface the address user space asked for: OpenWrt gives
+an AP and a station their own addresses, and with the wiphy address set
+both would otherwise take the hardware address on open.
+---
+ drivers/net/wireless/scsc/dev.c   |  8 ++++++++
+ drivers/net/wireless/scsc/mgt.c   | 19 +++++++++++++------
+ drivers/net/wireless/scsc/mgt.h   |  2 +-
+ drivers/net/wireless/scsc/netif.c |  4 +++-
+ 4 files changed, 25 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/net/wireless/scsc/dev.c b/drivers/net/wireless/scsc/dev.c
+index 41d5cd824..e76985afc 100755
+--- a/drivers/net/wireless/scsc/dev.c
++++ b/drivers/net/wireless/scsc/dev.c
+@@ -361,6 +361,14 @@ struct slsi_dev *slsi_dev_attach(struct device *dev, struct scsc_mx *core, struc
+ 	slsi_nl80211_vendor_init(sdev);
+ #endif
+ 
++	/* User space takes the interface addresses from the wiphy address
++	 * (OpenWrt: /sys/class/ieee80211/phyN/macaddress). Leave it zero
++	 * while the MAC address file cannot be read yet (EFS not mounted),
++	 * rather than publish a random address.
++	 */
++	if (slsi_get_hw_mac_address(sdev, sdev->hw_addr))
++		SLSI_ETHER_COPY(sdev->wiphy->perm_addr, sdev->hw_addr);
++
+ 	if (slsi_cfg80211_register(sdev) != 0) {
+ 		SLSI_ERR(sdev, "failed to register with cfg80211\n");
+ 		goto err_udi_proc_init;
+diff --git a/drivers/net/wireless/scsc/mgt.c b/drivers/net/wireless/scsc/mgt.c
+index 8f7a81761..05dd6186f 100755
+--- a/drivers/net/wireless/scsc/mgt.c
++++ b/drivers/net/wireless/scsc/mgt.c
+@@ -221,7 +221,8 @@ struct sk_buff *slsi_dequeue_cached_scan_result(struct slsi_scan *scan, int *cou
+ 	return skb;
+ }
+ 
+-void slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr)
++/* Returns false when no address was found and a random one is used */
++bool slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr)
+ {
+ #ifndef SLSI_TEST_DEV
+ 	const struct firmware *e = NULL;
+@@ -247,7 +248,7 @@ void slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr)
+ 	if (valid) {
+ 		SLSI_INFO(sdev, "MAC address from modparam: %02X:%02X:%02X:%02X:%02X:%02X\n",
+ 			  u[0], u[1], u[2], u[3], u[4], u[5]);
+-		return;
++		return true;
+ 	}
+ 
+ 	/* Sysfs parameter override */
+@@ -267,7 +268,7 @@ void slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr)
+ 	if (valid) {
+ 		SLSI_INFO(sdev, "MAC address from sysfs: %02X:%02X:%02X:%02X:%02X:%02X\n",
+ 			  u[0], u[1], u[2], u[3], u[4], u[5]);
+-		return;
++		return true;
+ 	}
+ 
+ 	/* read mac.txt */
+@@ -293,7 +294,7 @@ void slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr)
+ 		for (i = 0; i < ETH_ALEN; i++)
+ 			addr[i] = u[i] & 0xff;
+ 		SLSI_INFO(sdev, "MAC address loaded from %s: %02X:%02X:%02X:%02X:%02X:%02X\n", path_name, u[0], u[1], u[2], u[3], u[4], u[5]);
+-		return;
++		return true;
+ 	}
+ mac_efs:
+ 	r = mx140_request_file(sdev->maxwell_core, CONFIG_SCSC_WLAN_MAC_ADDRESS_FILENAME, &e);
+@@ -312,7 +313,7 @@ void slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr)
+ 		addr[i] = u[i] & 0xff;
+ 	SLSI_INFO(sdev, "MAC address loaded from %s: %02X:%02X:%02X:%02X:%02X:%02X\n", CONFIG_SCSC_WLAN_MAC_ADDRESS_FILENAME, u[0], u[1], u[2], u[3], u[4], u[5]);
+ 	mx140_release_file(sdev->maxwell_core, e);
+-	return;
++	return true;
+ 
+ mac_default:
+ 	/* This is safe to call, even if the struct firmware handle is NULL */
+@@ -324,13 +325,14 @@ void slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr)
+ 	get_random_bytes(&addr[3], 3);
+ 	SLSI_DBG1(sdev, SLSI_INIT_DEINIT,
+ 		  "MAC addr file NOT found, using default MAC ADDR: %pM\n", addr);
+-
++	return false;
+ #else
+ 	/* We use FIXED Mac addresses with the unittest driver */
+ 	struct slsi_test_dev *uftestdev = (struct slsi_test_dev *)sdev->maxwell_core;
+ 
+ 	SLSI_ETHER_COPY(addr, uftestdev->hw_addr);
+ 	SLSI_DBG1(sdev, SLSI_INIT_DEINIT, "Test Device Address: %pM\n", addr);
++	return true;
+ #endif
+ }
+ 
+@@ -795,6 +797,11 @@ struct net_device *slsi_dynamic_interface_create(struct wiphy        *wiphy,
+ 	dev->ieee80211_ptr->iftype = type;
+ 	if (params)
+ 		dev->ieee80211_ptr->use_4addr = params->use_4addr;
++	/* The address user space asked for (OpenWrt gives each interface
++	 * its own); slsi_net_open() only fills in a zero address.
++	 */
++	if (params && is_valid_ether_addr(params->macaddr))
++		eth_hw_addr_set(dev, params->macaddr);
+ 	SLSI_MUTEX_UNLOCK(ndev_vif->vif_mutex);
+ 
+ 	err = slsi_netif_register_rtlnl_locked(sdev, dev);
+diff --git a/drivers/net/wireless/scsc/mgt.h b/drivers/net/wireless/scsc/mgt.h
+index 79d6c47ce..e15793f1c 100644
+--- a/drivers/net/wireless/scsc/mgt.h
++++ b/drivers/net/wireless/scsc/mgt.h
+@@ -416,7 +416,7 @@ static inline void slsi_p2p_queue_unsync_vif_del_work(struct netdev_vif *ndev_vi
+ void slsi_purge_scan_results(struct netdev_vif *ndev_vif, u16 scan_id);
+ void slsi_purge_scan_results_locked(struct netdev_vif *ndev_vif, u16 scan_id);
+ struct sk_buff *slsi_dequeue_cached_scan_result(struct slsi_scan *scan, int *count);
+-void slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr);
++bool slsi_get_hw_mac_address(struct slsi_dev *sdev, u8 *addr);
+ int slsi_start(struct slsi_dev *sdev);
+ void slsi_stop_net_dev(struct slsi_dev *sdev, struct net_device *dev);
+ void slsi_stop(struct slsi_dev *sdev);
+diff --git a/drivers/net/wireless/scsc/netif.c b/drivers/net/wireless/scsc/netif.c
+index 04681441b..bc475e766 100644
+--- a/drivers/net/wireless/scsc/netif.c
++++ b/drivers/net/wireless/scsc/netif.c
+@@ -147,7 +147,9 @@ static int slsi_net_open(struct net_device *dev)
+ 	}
+ 
+ 	if (!sdev->netdev_up_count) {
+-		slsi_get_hw_mac_address(sdev, sdev->hw_addr);
++		if (slsi_get_hw_mac_address(sdev, sdev->hw_addr) &&
++		    is_zero_ether_addr(sdev->wiphy->perm_addr))
++			SLSI_ETHER_COPY(sdev->wiphy->perm_addr, sdev->hw_addr);
+ 
+ 		/* Assign Addresses */
+ 		SLSI_ETHER_COPY(sdev->netdev_addresses[SLSI_NET_INDEX_WLAN], sdev->hw_addr);

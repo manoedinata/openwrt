@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 16:58:19 +0700
-Subject: [PATCH 099/105] net: wireless: scsc: survive a deleted wlan0
+Subject: [PATCH 099/106] net: wireless: scsc: survive a deleted wlan0
 
 OpenWrt's netifd deletes the interfaces of a phy (del_virtual_intf)
 and adds its own, so wlan0 can be gone; Android never does that.

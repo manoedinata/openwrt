@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Fri, 23 Oct 2026 22:46:56 +0700
-Subject: [PATCH 085/105] power: supply: s2mpu06: end the charge in software
+Subject: [PATCH 085/106] power: supply: s2mpu06: end the charge in software
 
 The IC is set up as the vendor driver left it: no termination, no
 automatic recharge, no internal charging timer. The 10 s poll now ends

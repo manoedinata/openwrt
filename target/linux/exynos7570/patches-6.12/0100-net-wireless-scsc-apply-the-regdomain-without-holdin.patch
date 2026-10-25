@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 17:01:53 +0700
-Subject: [PATCH 100/105] net: wireless: scsc: apply the regdomain without
+Subject: [PATCH 100/106] net: wireless: scsc: apply the regdomain without
  holding rtnl
 
 wiphy_apply_custom_regulatory() takes rtnl itself on current kernels;

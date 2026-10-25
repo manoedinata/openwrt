@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Thu, 10 Apr 2025 14:01:14 +0530
-Subject: [PATCH 016/105] phy: exynos5-usbdrd: add exynos7870 USBDRD support
+Subject: [PATCH 016/106] phy: exynos5-usbdrd: add exynos7870 USBDRD support
 
 Implement support for Exynos7870 USB DRD on top of the existing
 exynos5-usbdrd driver.

@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Tue, 20 Oct 2026 21:40:01 +0700
-Subject: [PATCH 082/105] dt-bindings: gpu: mali-midgard: add Exynos7570
+Subject: [PATCH 082/106] dt-bindings: gpu: mali-midgard: add Exynos7570
 
 The Exynos7570 has a Mali-T720 with one shader core.
 

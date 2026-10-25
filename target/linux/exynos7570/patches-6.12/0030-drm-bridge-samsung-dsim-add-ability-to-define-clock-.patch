@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sun, 6 Jul 2025 23:55:44 +0530
-Subject: [PATCH 030/105] drm/bridge: samsung-dsim: add ability to define clock
+Subject: [PATCH 030/106] drm/bridge: samsung-dsim: add ability to define clock
  names for every variant
 
 Presently, all devices refer to clock names from a single array. The

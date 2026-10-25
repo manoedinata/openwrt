@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 15:35:08 +0700
-Subject: [PATCH 093/105] misc: samsung: scsc: port the downstream SCSC maxwell
+Subject: [PATCH 093/106] misc: samsung: scsc: port the downstream SCSC maxwell
  core (WLBT)
 
 The core of the Galaxy J4's 3.18 Samsung SCSC "maxwell" stack, which
