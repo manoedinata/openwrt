@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sun, 6 Jul 2025 23:55:45 +0530
-Subject: [PATCH 031/106] dt-bindings: samsung,mipi-dsim: document exynos7870
+Subject: [PATCH 031/107] dt-bindings: samsung,mipi-dsim: document exynos7870
  DSIM compatible
 
 Add compatible string for Exynos7870 DSIM bridge controller. The

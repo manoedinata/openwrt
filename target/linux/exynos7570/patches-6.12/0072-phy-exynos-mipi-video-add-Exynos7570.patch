@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Tue, 20 Oct 2026 17:30:48 +0700
-Subject: [PATCH 072/106] phy: exynos-mipi-video: add Exynos7570
+Subject: [PATCH 072/107] phy: exynos-mipi-video: add Exynos7570
 
 The Exynos7570 has the PMU and display SYSREG layout of the Exynos7870 but
 no camera SYSREG phandle, so the 7870 descriptor, which looks that phandle

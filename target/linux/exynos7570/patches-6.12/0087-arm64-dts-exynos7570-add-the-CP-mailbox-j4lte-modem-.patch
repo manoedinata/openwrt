@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Fri, 23 Oct 2026 23:11:02 +0700
-Subject: [PATCH 087/106] arm64: dts: exynos7570: add the CP mailbox; j4lte:
+Subject: [PATCH 087/107] arm64: dts: exynos7570: add the CP mailbox; j4lte:
  modem interface
 
 mailbox@10500000 (SPI 369) for the AP <-> CP mailbox. On the J4: the

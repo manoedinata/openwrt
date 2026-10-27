@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Tue, 20 Oct 2026 17:30:48 +0700
-Subject: [PATCH 071/106] clk: samsung: exynos7570: add CMU_DISPAUD
+Subject: [PATCH 071/107] clk: samsung: exynos7570: add CMU_DISPAUD
 
 Add the display and audio CMU, with the gates, dividers and user muxes the
 DECON, the DSIM and the display SysMMU need, and the two CMU_MIF clocks

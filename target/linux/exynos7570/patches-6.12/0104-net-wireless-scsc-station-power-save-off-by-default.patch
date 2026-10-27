@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 25 Oct 2026 00:18:00 +0700
-Subject: [PATCH 104/106] net: wireless: scsc: station power save off by
+Subject: [PATCH 104/107] net: wireless: scsc: station power save off by
  default
 
 Downstream always put a station in power save (MLME_POWERMGT, reset on

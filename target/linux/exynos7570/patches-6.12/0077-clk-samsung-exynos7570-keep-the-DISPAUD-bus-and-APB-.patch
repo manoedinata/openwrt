@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Tue, 20 Oct 2026 21:13:32 +0700
-Subject: [PATCH 077/106] clk: samsung: exynos7570: keep the DISPAUD bus and
+Subject: [PATCH 077/107] clk: samsung: exynos7570: keep the DISPAUD bus and
  APB gates on
 
 The display runs on these gates from the bootloader on, and they are

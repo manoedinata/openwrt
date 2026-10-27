@@ -1,0 +1,38 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Hendra Manudinata <manoedinata@gmail.com>
+Date: Tue, 27 Oct 2026 20:30:28 +0700
+Subject: [PATCH 107/107] net: wireless: scsc: advertise
+ NL80211_FEATURE_MAC_ON_CREATE
+
+cfg80211 passes the NL80211_ATTR_MAC of NL80211_CMD_NEW_INTERFACE on to
+add_virtual_intf only when the wiphy sets NL80211_FEATURE_MAC_ON_CREATE,
+so the params->macaddr handling added with the wiphy address never got an
+address: OpenWrt's station (asked for 0e:..) came up with the hardware
+address, the same as the AP's BSSID (0c:..). With the J4 as a repeater
+the firmware then gave the AP's clients' authentication frames to the
+station vif, hostapd never saw them and every client failed to connect
+while the station was up.
+
+Verified on the J4: phy0-sta0 0e:a8:a7:4e:20:76 connected upstream,
+phy0-ap0 0c:a8:a7:4e:20:76 with four phones associated and authorized.
+---
+ drivers/net/wireless/scsc/cfg80211_ops.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/drivers/net/wireless/scsc/cfg80211_ops.c b/drivers/net/wireless/scsc/cfg80211_ops.c
+index ca1bb1664..a9ff995c6 100755
+--- a/drivers/net/wireless/scsc/cfg80211_ops.c
++++ b/drivers/net/wireless/scsc/cfg80211_ops.c
+@@ -3596,6 +3596,12 @@ struct slsi_dev                           *slsi_cfg80211_new(struct device *dev)
+ 	wiphy->features |= NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR;
+ #endif
+ #endif
++	/* cfg80211 hands add_virtual_intf the address user space asks for
++	 * only with this; without it an added station got the hardware
++	 * address, the same as an AP's BSSID, and the firmware then gave
++	 * the AP's clients' frames to the station.
++	 */
++	wiphy->features |= NL80211_FEATURE_MAC_ON_CREATE;
+ 	return sdev;
+ }
+ 

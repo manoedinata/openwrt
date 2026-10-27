@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Thu, 12 Jun 2025 20:39:29 +0530
-Subject: [PATCH 018/106] dt-bindings: phy: samsung,mipi-video-phy: document
+Subject: [PATCH 018/107] dt-bindings: phy: samsung,mipi-video-phy: document
  exynos7870 MIPI phy
 
 The Exynos7870 MIPI PHY device contains one DSIM PHY block and three

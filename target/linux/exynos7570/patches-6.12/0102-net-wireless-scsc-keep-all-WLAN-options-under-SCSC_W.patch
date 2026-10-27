@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 25 Oct 2026 00:05:15 +0700
-Subject: [PATCH 102/106] net: wireless: scsc: keep all WLAN options under
+Subject: [PATCH 102/107] net: wireless: scsc: keep all WLAN options under
  SCSC_WLAN
 
 The options after the downstream 'endif' (MAC address file name, max

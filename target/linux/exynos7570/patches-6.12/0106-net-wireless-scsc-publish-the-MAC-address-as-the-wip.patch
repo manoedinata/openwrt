@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 25 Oct 2026 14:40:02 +0700
-Subject: [PATCH 106/106] net: wireless: scsc: publish the MAC address as the
+Subject: [PATCH 106/107] net: wireless: scsc: publish the MAC address as the
  wiphy address
 
 The driver read the MAC address only when the first interface came up and

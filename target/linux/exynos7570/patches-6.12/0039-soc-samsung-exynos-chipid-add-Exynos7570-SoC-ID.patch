@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 07:30:16 +0700
-Subject: [PATCH 039/106] soc: samsung: exynos-chipid: add Exynos7570 SoC ID
+Subject: [PATCH 039/107] soc: samsung: exynos-chipid: add Exynos7570 SoC ID
 
 The Exynos7570 reports product ID 0xE7570202 (product 0xE7570, revision
 0x202), so the driver fails with 'Unknown SoC' on it. Add it to the list and

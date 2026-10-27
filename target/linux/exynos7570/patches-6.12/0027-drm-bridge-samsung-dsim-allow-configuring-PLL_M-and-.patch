@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sun, 6 Jul 2025 23:55:41 +0530
-Subject: [PATCH 027/106] drm/bridge: samsung-dsim: allow configuring PLL_M and
+Subject: [PATCH 027/107] drm/bridge: samsung-dsim: allow configuring PLL_M and
  PLL_S offsets
 
 Currently, PLL_P offset of DSIM_PLLCTRL is configurable in the driver

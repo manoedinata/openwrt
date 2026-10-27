@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Thu, 10 Apr 2025 14:01:12 +0530
-Subject: [PATCH 014/106] phy: exynos5-usbdrd: use GENMASK and FIELD_PREP for
+Subject: [PATCH 014/107] phy: exynos5-usbdrd: use GENMASK and FIELD_PREP for
  Exynos5 PHY registers
 
 Most Exynos850 and Exynos9 (GS101) DRD PHY registers use GENMASK for masks

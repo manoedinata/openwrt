@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 16:04:53 +0700
-Subject: [PATCH 096/106] clk: samsung: exynos7570: request the USB PLL from
+Subject: [PATCH 096/107] clk: samsung: exynos7570: request the USB PLL from
  WLBT in USBPLL_CON0
 
 The 20 MHz USB PLL sits in the WLBT block. Owning it (USBPLL_CON1 SEL)

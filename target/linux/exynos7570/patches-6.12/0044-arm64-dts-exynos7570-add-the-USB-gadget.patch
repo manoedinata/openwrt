@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 08:02:32 +0700
-Subject: [PATCH 044/106] arm64: dts: exynos7570: add the USB gadget
+Subject: [PATCH 044/107] arm64: dts: exynos7570: add the USB gadget
 
 Add the USB DRD PHY and the DWC3 controller (high-speed only) and enable them
 in peripheral mode on the J4. The PHY gets the 20 MHz core clock and the

@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Wed, 19 Feb 2025 00:17:47 +0530
-Subject: [PATCH 012/106] dt-bindings: mmc: samsung,exynos-dw-mshc: add
+Subject: [PATCH 012/107] dt-bindings: mmc: samsung,exynos-dw-mshc: add
  exynos7870 support
 
 Document the compatibles for Exynos7870's DW MMC driver, for both

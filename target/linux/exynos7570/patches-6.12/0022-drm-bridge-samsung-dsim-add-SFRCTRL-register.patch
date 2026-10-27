@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sun, 6 Jul 2025 23:55:36 +0530
-Subject: [PATCH 022/106] drm/bridge: samsung-dsim: add SFRCTRL register
+Subject: [PATCH 022/107] drm/bridge: samsung-dsim: add SFRCTRL register
 
 On Exynos7870 devices, enabling the display requires disabling
 standby by writing to the SFRCTRL register. Add the register and related

@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Fri, 31 Oct 2025 00:50:15 +0530
-Subject: [PATCH 034/106] dt-bindings: soc: samsung: exynos-pmu: allow mipi-phy
+Subject: [PATCH 034/107] dt-bindings: soc: samsung: exynos-pmu: allow mipi-phy
  subnode for Exynos7870 PMU
 
 Exynos7870 PMU is already documented in schema. Add Exynos7870's PMU

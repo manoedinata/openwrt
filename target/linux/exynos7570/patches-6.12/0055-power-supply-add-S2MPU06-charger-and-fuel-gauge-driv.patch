@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 11:51:15 +0700
-Subject: [PATCH 055/106] power: supply: add S2MPU06 charger and fuel gauge
+Subject: [PATCH 055/107] power: supply: add S2MPU06 charger and fuel gauge
  drivers
 
 Both sit on the PMIC's SPEEDY bus and are cells of the PMIC core. The charger

@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 08:58:34 +0700
-Subject: [PATCH 050/106] arm64: dts: exynos7570: add the SPEEDY bus and the
+Subject: [PATCH 050/107] arm64: dts: exynos7570: add the SPEEDY bus and the
  J4's S2MPU06 PMIC
 
 Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
