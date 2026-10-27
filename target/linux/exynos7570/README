@@ -20,9 +20,11 @@ mounts devtmpfs and writes the boot reason through /dev/mem.
 
 Install: S-BOOT only boots an Android boot image, so the kernel Image and
 exynos7570-j4lte.dtb are wrapped by uniLoader with mainline-tools/pack.sh
-from github.com/Manoedinata/debian_j4lte (root=/dev/mmcblk0p25) and written
-to BOOT (mmcblk0p10). The rootfs tarball goes onto USERDATA (mmcblk0p25),
-formatted ext4. If that is done from the stock 3.18 kernel, format with
+from github.com/Manoedinata/debian_j4lte (root=/dev/mmcblk0p18, the dtb's
+default bootargs) and written to BOOT (mmcblk0p10). The rootfs tarball goes
+onto SYSTEM (mmcblk0p18), formatted ext4; USERDATA (mmcblk0p25) holds the
+Debian root of the downstream kernel in RECOVERY. If the format is done from
+the stock 3.18 kernel, format with
 "mkfs.ext4 -O ^metadata_csum": 3.18 corrupts the superblock checksum of a
 metadata_csum filesystem.
 
