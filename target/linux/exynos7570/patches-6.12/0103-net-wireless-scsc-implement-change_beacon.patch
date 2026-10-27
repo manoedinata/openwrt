@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 25 Oct 2026 00:14:05 +0700
-Subject: [PATCH 103/107] net: wireless: scsc: implement change_beacon
+Subject: [PATCH 103/108] net: wireless: scsc: implement change_beacon
 
 Downstream returned -EOPNOTSUPP; Android's hostapd never needed it, but
 OpenWrt's updates the beacon now and then and logged "Failed to set

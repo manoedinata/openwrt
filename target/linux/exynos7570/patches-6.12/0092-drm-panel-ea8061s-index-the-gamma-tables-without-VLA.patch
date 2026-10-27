@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 01:49:40 +0700
-Subject: [PATCH 092/107] drm/panel: ea8061s: index the gamma tables without
+Subject: [PATCH 092/108] drm/panel: ea8061s: index the gamma tables without
  VLA types
 
 dynamic_aid.c reached the m_gray and offset_color tables through

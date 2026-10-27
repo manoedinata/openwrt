@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sat, 1 Mar 2025 01:10:34 +0530
-Subject: [PATCH 011/107] usb: dwc3: exynos: add support for exynos7870
+Subject: [PATCH 011/108] usb: dwc3: exynos: add support for exynos7870
 
 Exynos7870 devices have a DWC3 compatible USB 2.0 controller.
 Add support in the driver by:

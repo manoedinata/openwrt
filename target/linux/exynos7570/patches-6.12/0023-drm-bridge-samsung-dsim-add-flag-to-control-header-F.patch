@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Sun, 6 Jul 2025 23:55:37 +0530
-Subject: [PATCH 023/107] drm/bridge: samsung-dsim: add flag to control header
+Subject: [PATCH 023/108] drm/bridge: samsung-dsim: add flag to control header
  FIFO wait
 
 Exynos7870's DSIM device doesn't require waiting for the header FIFO

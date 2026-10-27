@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 11:56:49 +0700
-Subject: [PATCH 057/107] iio: adc: exynos_adc: add Exynos7570 support
+Subject: [PATCH 057/108] iio: adc: exynos_adc: add Exynos7570 support
 
 Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
 (cherry picked from commit a3937cc4859e0f7be100940546c788a2fc425b42)

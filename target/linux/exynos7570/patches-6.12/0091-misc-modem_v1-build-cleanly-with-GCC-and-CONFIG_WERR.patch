@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 01:49:40 +0700
-Subject: [PATCH 091/107] misc: modem_v1: build cleanly with GCC and
+Subject: [PATCH 091/108] misc: modem_v1: build cleanly with GCC and
  CONFIG_WERROR
 
 OpenWrt builds the kernel with GCC and CONFIG_WERROR=y, which turns the

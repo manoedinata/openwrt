@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Tue, 20 Oct 2026 17:30:59 +0700
-Subject: [PATCH 075/107] drm/exynos: decon: add Exynos7570
+Subject: [PATCH 075/108] drm/exynos: decon: add Exynos7570
 
 The Exynos7570 DECON is the 7870 one with a fractional VCLK divider (a 10 bit
 numerator and denominator in VCLKCON1) and a bootloader that leaves it

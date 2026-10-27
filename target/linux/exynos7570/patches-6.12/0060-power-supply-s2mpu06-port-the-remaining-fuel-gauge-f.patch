@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 12:25:36 +0700
-Subject: [PATCH 060/107] power: supply: s2mpu06: port the remaining fuel gauge
+Subject: [PATCH 060/108] power: supply: s2mpu06: port the remaining fuel gauge
  features
 
 Capacity scaling with the dynamic 100 % at the end of a charge, one-percent

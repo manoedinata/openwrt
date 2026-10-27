@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 16:58:08 +0700
-Subject: [PATCH 098/107] net: wireless: scsc: port the downstream SCSC WLAN
+Subject: [PATCH 098/108] net: wireless: scsc: port the downstream SCSC WLAN
  driver (WLBT)
 
 The Galaxy J4's 3.18 SCSC WLAN driver (FAPI, fullmac cfg80211) for the

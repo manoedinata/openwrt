@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: =?UTF-8?q?=C5=81ukasz=20Lebiedzi=C5=84ski?= <kernel@lvkasz.us>
 Date: Mon, 6 Apr 2026 15:56:27 +0200
-Subject: [PATCH 035/107] phy: exynos5-usbdrd: fix USB 2.0 HS PHY tuning values
+Subject: [PATCH 035/108] phy: exynos5-usbdrd: fix USB 2.0 HS PHY tuning values
  for Exynos7870
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8

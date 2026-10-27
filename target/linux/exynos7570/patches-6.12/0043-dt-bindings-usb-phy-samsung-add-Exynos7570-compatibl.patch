@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 08:02:32 +0700
-Subject: [PATCH 043/107] dt-bindings: usb, phy: samsung: add Exynos7570
+Subject: [PATCH 043/108] dt-bindings: usb, phy: samsung: add Exynos7570
  compatibles
 
 The USB 2.0 DRD controller and PHY of the Exynos7570 are the ones of the

@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sun, 18 Oct 2026 14:13:46 +0700
-Subject: [PATCH 065/107] arm64: dts: exynos7570: j4lte: enable eMMC HS400
+Subject: [PATCH 065/108] arm64: dts: exynos7570: j4lte: enable eMMC HS400
 
 Signed-off-by: Hendra Manudinata <manoedinata@gmail.com>
 (cherry picked from commit 9f4f627b1f73e9e9677b833ec619fad2ac74aa18)

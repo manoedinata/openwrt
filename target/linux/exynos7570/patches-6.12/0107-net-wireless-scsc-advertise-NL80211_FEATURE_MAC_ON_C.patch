@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Tue, 27 Oct 2026 20:30:28 +0700
-Subject: [PATCH 107/107] net: wireless: scsc: advertise
+Subject: [PATCH 107/108] net: wireless: scsc: advertise
  NL80211_FEATURE_MAC_ON_CREATE
 
 cfg80211 passes the NL80211_ATTR_MAC of NL80211_CMD_NEW_INTERFACE on to

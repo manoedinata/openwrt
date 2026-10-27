@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Hendra Manudinata <manoedinata@gmail.com>
 Date: Sat, 24 Oct 2026 17:16:21 +0700
-Subject: [PATCH 101/107] net: wireless: scsc: make AP mode work with hostapd
+Subject: [PATCH 101/108] net: wireless: scsc: make AP mode work with hostapd
 
 OpenWrt's hostapd/wifi-scripts bring an AP up differently from
 Android's, and three things stopped it:

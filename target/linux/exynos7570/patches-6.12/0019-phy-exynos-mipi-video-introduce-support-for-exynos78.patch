@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Kaustabh Chakraborty <kauschluss@disroot.org>
 Date: Thu, 12 Jun 2025 20:39:30 +0530
-Subject: [PATCH 019/107] phy: exynos-mipi-video: introduce support for
+Subject: [PATCH 019/108] phy: exynos-mipi-video: introduce support for
  exynos7870
 
 Add support for Exynos7870 in the existing MIPI CSIS/DSIM driver. The
